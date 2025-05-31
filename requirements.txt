@@ -2,3 +2,4 @@ web3
 networkx
 pandas
 python-dotenv
+httpx
