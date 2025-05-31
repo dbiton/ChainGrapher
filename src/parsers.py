@@ -38,15 +38,13 @@ def create_conflict_graph(txs: List[str], reads: Dict[str, Set[str]], writes: Di
     G = nx.Graph()
     G.add_nodes_from(txs)
     for tx0_hash, tx0_writes in writes.items():
-      for tx1_hash, tx1_reads in reads.items():
-        if tx0_hash != tx1_hash:
-          if not tx0_writes.isdisjoint(tx1_reads):
-            G.add_edge(tx0_hash, tx1_hash)
-      for tx1_hash, tx1_writes in reads.items():
-        # checks both tx0_hash != tx1_hash and removes redundent checks with >
-        if tx0_hash > tx1_hash:
-          if not tx0_writes.isdisjoint(tx1_writes):
-            G.add_edge(tx0_hash, tx1_hash)
+        for tx1_hash, tx1_reads in reads.items():
+            if tx0_hash != tx1_hash and not tx0_writes.isdisjoint(tx1_reads):
+                G.add_edge(tx0_hash, tx1_hash)
+        for tx1_hash, tx1_writes in reads.items():
+            # checks both tx0_hash != tx1_hash and removes redundent checks with >
+            if tx0_hash > tx1_hash and not tx0_writes.isdisjoint(tx1_writes):
+                G.add_edge(tx0_hash, tx1_hash)
     return G
 
 def parse_preStateTracer_trace(block_trace_diffFalse: dict, block_trace_diffTrue: dict) -> Tuple[Dict[str, Set[str]],Dict[str, Set[str]]]:
