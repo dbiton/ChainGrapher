@@ -1,5 +1,3 @@
-
-import json
 from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
@@ -12,7 +10,7 @@ def plot_graph(graph):
     plt.show()
 
 def plot_block_size_distribution(df):
-    bucket_width = 16
+    bucket_width = 4
     block_sizes = list(df['txs'])
     
     # Determine the range of the data
@@ -166,7 +164,6 @@ def plot_data(csv_path, is_callTracer = False):
             # Copy to avoid SettingWithCopyWarning
             df_group = df_group.copy()
             
-            prop_data = df_group[prop]
             density = df_group["density"]
             
             # Bin the 'prop' data

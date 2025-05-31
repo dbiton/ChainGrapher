@@ -1,11 +1,7 @@
 import json
 import os
-import pickle
 import zlib
-
 import h5py
-
-from parsers import apply_recursively, bytes_to_hex
 from concurrent.futures import ThreadPoolExecutor
 
 def uncompress_chunk(dset, i):

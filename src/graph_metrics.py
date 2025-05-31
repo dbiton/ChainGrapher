@@ -19,7 +19,7 @@ def graph_average_degree(graph):
 
 def graph_max_degree(graph: nx.Graph):
     try:
-        return max([val for (node, val) in graph.degree()], default=0)
+        return max([val for (_, val) in graph.degree()], default=0)
     except Exception as e:
         print(f"Exception in graph_average_degree: {e}")
         return float('nan')
@@ -133,8 +133,6 @@ def graph_largest_connected_component_size(G):
     try:
         components = nx.connected_components(G)
         largest_size = max((len(component) for component in components), default=0)
-        if largest_size == nx.number_of_nodes(G):
-            x = 3
         return largest_size
     except Exception as e:
         print(f"Exception in graph_largest_connected_component_size: {e}")
@@ -143,7 +141,7 @@ def graph_largest_connected_component_size(G):
 
 def graph_clique(graph):
     try:
-         # Find all maximal cliques
+        # Find all maximal cliques
         maximal_cliques = nx.find_cliques(graph)
         
         # Determine the size of the largest clique

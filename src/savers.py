@@ -1,15 +1,12 @@
 from itertools import count
 import json
-import math
 import os
-import pickle
 import h5py
 import zlib
 import numpy as np
 
 from fetchers.fetchers import fetch_parallel
 from fetchers.eth_fetchers import fetcher_prestate
-from parsers import apply_recursively, hex_to_bytes
 
 
 def save_prestate(filename: str, range_start: int, range_stop: int):

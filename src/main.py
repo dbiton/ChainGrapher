@@ -98,7 +98,8 @@ def get_files(folder_path, extension):
 def main():
     dirpath = f"E:\\sui"
     output_path = "metrics.csv"
-    '''if os.path.exists(output_path):
+    '''
+    if os.path.exists(output_path):
         os.remove(output_path)
     for file in get_files(dirpath, ".h5"):
         generate_data(file, output_path, process_sui_trace)'''
@@ -113,6 +114,6 @@ def download_files(start: int, end: int, dirpath: str, filesize: int):
         save_to_file(os.path.join(dirpath, filename), traces_generator)
 
 if __name__ == "__main__":
-    # download_files(150000000, 151000000, "E:\\sui", 100)
+    # download_files(150001000, 150100000, "E:\\sui", 1000)
     main()  
     

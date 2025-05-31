@@ -15,10 +15,10 @@ def hex_to_bytes(s: str) -> bytes:
 
 def bytes_to_hex(b: bytes) -> bytes:
     if isinstance(b, bytes):
-        hex = b.hex()
-        while hex[0] == "0" and len(hex) > 1:
-            hex = hex[1:]
-        return '0x' + hex
+        bytes_as_hex = b.hex()
+        while bytes_as_hex[0] == "0" and len(bytes_as_hex) > 1:
+            bytes_as_hex = bytes_as_hex[1:]
+        return '0x' + bytes_as_hex
     return b
 
 def apply_recursively(obj, f):
@@ -36,9 +36,7 @@ def apply_recursively(obj, f):
 
 def create_conflict_graph(txs: List[str], reads: Dict[str, Set[str]], writes: Dict[str, Set[str]]) -> nx.Graph:
     G = nx.Graph()
-
     G.add_nodes_from(txs)
-    
     for tx0_hash, tx0_writes in writes.items():
       for tx1_hash, tx1_reads in reads.items():
         if tx0_hash != tx1_hash:
@@ -49,7 +47,6 @@ def create_conflict_graph(txs: List[str], reads: Dict[str, Set[str]], writes: Di
         if tx0_hash > tx1_hash:
           if not tx0_writes.isdisjoint(tx1_writes):
             G.add_edge(tx0_hash, tx1_hash)
-
     return G
 
 def parse_preStateTracer_trace(block_trace_diffFalse: dict, block_trace_diffTrue: dict) -> Tuple[Dict[str, Set[str]],Dict[str, Set[str]]]:
@@ -62,14 +59,14 @@ def parse_preStateTracer_trace(block_trace_diffFalse: dict, block_trace_diffTrue
         tx_writes = set(tx['pre'])
         tx_writes.update(set(tx['post']))
         if len(tx_writes) > 0:
-          writes[tx_hash] = tx_writes
+            writes[tx_hash] = tx_writes
     
     for entry in block_trace_diffFalse:
         tx = entry["result"]
         tx_hash = entry["txHash"]
         tx_reads = set(tx).difference(writes.get(tx_hash, set()))
         if len(tx_reads) > 0:
-          reads[tx_hash] = set(tx).difference(writes.get(tx_hash, set()))
+            reads[tx_hash] = set(tx).difference(writes.get(tx_hash, set()))
     
     return reads, writes
 
