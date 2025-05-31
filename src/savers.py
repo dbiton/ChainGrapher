@@ -7,12 +7,15 @@ import h5py
 import zlib
 import numpy as np
 
-from fetchers import fetcher_prestate, fetch_parallel
+from fetchers.fetchers import fetch_parallel
+from fetchers.eth_fetchers import fetcher_prestate
 from parsers import apply_recursively, hex_to_bytes
+
 
 def save_prestate(filename: str, range_start: int, range_stop: int):
   generator = fetch_parallel(range_start, range_stop, fetcher_prestate)
-  save_to_file(filename, generator, range_stop-range_start)
+  save_to_file(filename, generator, range_stop - range_start)
+
     
 def append_to_file(filename: str, generator, limit=None) -> None:
   if not os.path.exists(filename):

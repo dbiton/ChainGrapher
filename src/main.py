@@ -9,21 +9,23 @@ import pandas as pd
 import networkx as nx
 import multiprocessing as mp
 
-from fetchers import fetch_block, fetch_block_trace, fetch_parallel, fetcher_prestate, fetcher_call
+from fetchers.eth_fetchers import fetch_block, fetch_block_trace, fetcher_prestate, fetcher_call
 from parsers import create_conflict_graph, get_callTracer_additional_metrics, parse_callTracer_trace, parse_preStateTracer_trace
 from graph_metrics import *
 
 from plotters import plot_data
 import plotters
-from savers import append_to_file, save_prestate, save_to_file
+from savers import save_to_file
 
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import griddata
 from loaders import load_compressed_file, load_file
+from fetchers.sui_fetchers import fetcher_sui
+from fetchers.fetchers import fetch_serial
 
 def process_prestate_trace(block_number, diffFalse, diffTrue):
     print(f"processing {block_number}...")
@@ -82,24 +84,23 @@ def get_files(folder_path, extension):
     return [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith(extension)]
 
 def main():
-    #dirpath = f"G:\\traces"
+    dirpath = f"G:\\traces"
     output_path = "metrics_prestateTracer_conflict_graph.csv"
-    #if os.path.exists(output_path):
-    #    os.remove(output_path)
-    #for file in get_files(dirpath, ".h5"):
-    #    generate_data(file, output_path, process_call_trace)
+    if os.path.exists(output_path):
+        os.remove(output_path)
+    for file in get_files(dirpath, ".h5"):
+        generate_data(file, output_path, process_call_trace)
     plot_data(output_path)
 
-def download_files():
-    dirpath = f"F:\\prev_E\\missing"
-    filesize = 1000
-    for begin in range(21100000, 21200000, filesize):
+
+def download_files(start: int, end: int, dirpath: str, filesize: int):
+    for begin in range(start, end, filesize):
         end = begin + filesize
-        filename = f"{begin}_{end}_preState_compressed.h5"
-        traces_generator = fetch_parallel(range(begin, end), fetcher_prestate)
+        filename = f"{begin}_{end}.h5"
+        traces_generator = fetch_serial(range(begin, end), fetcher_sui)
         save_to_file(os.path.join(dirpath, filename), traces_generator)
 
 if __name__ == "__main__":
-    main()
+    download_files(150000000, 151000000, "E:\\sui", 100)
         
     

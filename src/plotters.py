@@ -13,7 +13,7 @@ def plot_graph(graph):
 
 def plot_block_size_distribution(df):
     bucket_width = 16
-    block_sizes = list(df['Txs Count'])
+    block_sizes = list(df['txs'])
     
     # Determine the range of the data
     min_val = min(block_sizes)

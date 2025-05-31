@@ -2,36 +2,31 @@ import queue
 from typing import Any, Callable
 import requests
 from concurrent.futures import ThreadPoolExecutor
-
+import os
 from web3 import Web3
+from dotenv import load_dotenv
+
+load_dotenv()
+
+ETH_RPC_URL = os.getenv("ETH_RPC_URL")
 
 
 def fetcher_prestate(block_number: int):
-  diffFalse = fetch_block_trace(block_number, "prestateTracer", {"diffMode": False})
-  diffTrue = fetch_block_trace(block_number, "prestateTracer", {"diffMode": True})
-  return block_number, diffFalse, diffTrue
+    diffFalse = fetch_block_trace(block_number, "prestateTracer", {"diffMode": False})
+    diffTrue = fetch_block_trace(block_number, "prestateTracer", {"diffMode": True})
+    return block_number, diffFalse, diffTrue
 
 
 def fetcher_call(block_number: int):
-  trace = fetch_block_trace(block_number, "callTracer")
-  return block_number, trace
-
-def fetch_parallel(iter: int, fetcher: Callable[[int], Any]):    
-    futures = []
-    with ThreadPoolExecutor() as executor:
-        futures = [executor.submit(fetcher, i) for i in iter]
-        for future in futures:
-            result = future.result()
-            if result:
-              yield result
+    trace = fetch_block_trace(block_number, "callTracer")
+    return block_number, trace
 
 
-def fetch_block_trace(block_number: str, tracer_name: str, tracer_config = {}) -> dict:
-    CHAINSTACK_RPC_URL = "https://ethereum-mainnet.core.chainstack.com/4033397d5b35d9414e7039efbdae0d45"
+def fetch_block_trace(block_number: str, tracer_name: str, tracer_config={}) -> dict:
     if tracer_name not in ["callTracer", "prestateTracer"]:
-      raise Exception(f"unknown tracer type {tracer_name}")
+        raise Exception(f"unknown tracer type {tracer_name}")
     if tracer_config not in [{}, {"diffMode": True}, {"diffMode": False}]:
-      raise Exception(f"unknown tracer config {tracer_config}")
+        raise Exception(f"unknown tracer config {tracer_config}")
     try:
         payload = {
             "jsonrpc": "2.0",
@@ -45,7 +40,7 @@ def fetch_block_trace(block_number: str, tracer_name: str, tracer_config = {}) -
             ],
             "id": 1
         }
-        response = requests.post(CHAINSTACK_RPC_URL, json=payload, timeout=600)
+        response = requests.post(ETH_RPC_URL, json=payload, timeout=600)
         if response.status_code == 200:
             print(f"fetched block trace {block_number} with {tracer_name}, {tracer_config}")
             result = response.json()["result"]
@@ -69,6 +64,7 @@ conn = [eth_client.is_connected() for eth_client in eth_clients]
 eth_clients_queue = queue.Queue()
 for eth_client in eth_clients:
     eth_clients_queue.put(eth_client)
+
 
 def fetch_block(block_num):
     while True:
