@@ -24,21 +24,7 @@ def load_checkpoints():
                 return
 
 
-def create_read_write_sets(tx):
-    write_addrs = set()
-    read_addrs = set()
-    if 'objectChanges' in tx:
-        for change in tx['objectChanges']:
-            if change['type'] in {'created', 'mutated', 'unwrapped', 'wrapped', 'deleted', 'unwrappedThenDeleted'}:
-                write_addrs.add(change['objectId'])
-    if 'effects' in tx:
-        effects = tx['effects']
-        for mod in effects.get('modifiedAtVersions', []):
-            read_addrs.add(mod['objectId'])
-        for shared in effects.get('sharedObjects', []):
-            read_addrs.add(shared['objectId'])
-    read_addrs -= write_addrs
-    return read_addrs, write_addrs
+
 
 
 def process_trace(id, txs):

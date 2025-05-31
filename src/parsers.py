@@ -162,6 +162,32 @@ def parse_callTracer_trace(block_trace):
                     reads[tx_hash].update(iter_reads)
     return reads, writes
 
+def parse_sui_trace(txs):
+    writes: Dict[str, Set[str]] = {}
+    reads: Dict[str, Set[str]] = {}
+    for tx in txs:
+        tx_id = tx['digest']
+        tx_reads, tx_writes = parse_sui_tx_trace(tx)
+        reads[tx_id] = tx_reads
+        writes[tx_id] = tx_writes
+    return reads, writes
+
+def parse_sui_tx_trace(tx):
+    write_addrs = set()
+    read_addrs = set()
+    if 'objectChanges' in tx:
+        for change in tx['objectChanges']:
+            if change['type'] in {'created', 'mutated', 'unwrapped', 'wrapped', 'deleted', 'unwrappedThenDeleted'}:
+                write_addrs.add(change['objectId'])
+    if 'effects' in tx:
+        effects = tx['effects']
+        for mod in effects.get('modifiedAtVersions', []):
+            read_addrs.add(mod['objectId'])
+        for shared in effects.get('sharedObjects', []):
+            read_addrs.add(shared['objectId'])
+    read_addrs -= write_addrs
+    return read_addrs, write_addrs
+
 def has_field(tx, field):
     return field in tx and tx[field] != b'' and tx[field] != None
 

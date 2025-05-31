@@ -26,6 +26,7 @@ from scipy.interpolate import griddata
 from loaders import load_compressed_file, load_file
 from fetchers.sui_fetchers import fetcher_sui
 from fetchers.fetchers import fetch_serial
+from parsers import parse_sui_trace
 
 def process_prestate_trace(block_number, diffFalse, diffTrue):
     print(f"processing {block_number}...")
@@ -48,6 +49,17 @@ def process_call_trace(block_number, call_trace):
     txs = [tx_trace["txHash"] for tx_trace in call_trace]
     G = create_conflict_graph(txs, reads, writes)
     metrics.update(get_graph_metrics(G, {"block_number": block_number, "txs": len(call_trace)}))
+    return metrics
+
+def process_sui_trace(checkpoint_number, checkpoint, txs):
+    print(f"processing {checkpoint_number}...")
+    if checkpoint is None or txs is None:
+        print(f"{checkpoint_number} data is missing!")
+        return None
+    reads, writes = parse_sui_trace(txs)
+    txs_ids = [tx_trace["digest"] for tx_trace in txs]
+    G = create_conflict_graph(txs_ids, reads, writes)
+    metrics = get_graph_metrics(G, {"block_number": checkpoint_number, "txs": len(txs)})
     return metrics
 
 def generate_data(data_path, output_path, processor, limit = None):
@@ -84,12 +96,12 @@ def get_files(folder_path, extension):
     return [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith(extension)]
 
 def main():
-    dirpath = f"G:\\traces"
-    output_path = "metrics_prestateTracer_conflict_graph.csv"
-    if os.path.exists(output_path):
+    dirpath = f"E:\\sui"
+    output_path = "metrics.csv"
+    '''if os.path.exists(output_path):
         os.remove(output_path)
     for file in get_files(dirpath, ".h5"):
-        generate_data(file, output_path, process_call_trace)
+        generate_data(file, output_path, process_sui_trace)'''
     plot_data(output_path)
 
 
@@ -101,6 +113,6 @@ def download_files(start: int, end: int, dirpath: str, filesize: int):
         save_to_file(os.path.join(dirpath, filename), traces_generator)
 
 if __name__ == "__main__":
-    download_files(150000000, 151000000, "E:\\sui", 100)
-        
+    # download_files(150000000, 151000000, "E:\\sui", 100)
+    main()  
     

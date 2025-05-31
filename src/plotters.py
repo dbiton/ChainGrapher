@@ -170,6 +170,8 @@ def plot_data(csv_path, is_callTracer = False):
             density = df_group["density"]
             
             # Bin the 'prop' data
+            if len(density) == 0:
+                continue
             bins = np.linspace(density.min(), density.max(), num=bins_count)  # Adjust 'num' for bin granularity
             df_group['density_bin'] = pd.cut(density, bins=bins, include_lowest=True)
             
