@@ -101,3 +101,13 @@ $RECYCLE.BIN/
 
 # Linux
 *~
+
+# Plots
+*.png
+*.jpeg
+*.jpg
+
+# Data
+*.csv
+*.h5
+*.pkl
