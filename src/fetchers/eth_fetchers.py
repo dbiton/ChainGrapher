@@ -1,7 +1,5 @@
 import queue
-from typing import Any, Callable
 import requests
-from concurrent.futures import ThreadPoolExecutor
 import os
 from web3 import Web3
 from dotenv import load_dotenv

@@ -35,7 +35,7 @@ def post_with_retry(payload: Any, max_retries: int=5, base_delay: float=2.0) -> 
                     request=response.request,
                     response=response,
                 )
-            return response
+            return response.json()["result"]
         except (httpx.RequestError, httpx.HTTPStatusError) as e:
             print(f"[Attempt {attempt}] Error: {e}")
             if attempt == max_retries:
@@ -53,7 +53,7 @@ def get_latest_checkpoint():
         "params": []
     }
     response = post_with_retry(payload)
-    return response.json()["result"]
+    return response
 
 
 def get_checkpoints(checkpoints_indice: List[int]) -> list:
@@ -65,7 +65,7 @@ def get_checkpoints(checkpoints_indice: List[int]) -> list:
         "params": [checkpoints_ids]
     }
     response = post_with_retry(payload)
-    return response.json()["result"]
+    return response
 
 
 def get_checkpoint(checkpoint_index: int) -> dict:
@@ -76,7 +76,7 @@ def get_checkpoint(checkpoint_index: int) -> dict:
         "params": [str(checkpoint_index)]
     }
     response = post_with_retry(payload)
-    return response.json()["result"]
+    return response
 
 
 def get_transactions(txs_ids: List[str]):
@@ -95,7 +95,7 @@ def get_transactions(txs_ids: List[str]):
         }]
     }
     response = post_with_retry(payload)
-    return response.json()["result"]
+    return response
 
 
 def get_transaction(tx_id: str) -> dict:
@@ -114,4 +114,4 @@ def get_transaction(tx_id: str) -> dict:
         }]
     }
     response = post_with_retry(payload)
-    return response.json()["result"]
+    return response
