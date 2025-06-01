@@ -36,7 +36,7 @@ def post_with_retry(payload: Any, max_retries: int=5, base_delay: float=2.0) -> 
                     response=response,
                 )
             return response.json()["result"]
-        except (httpx.RequestError, httpx.HTTPStatusError) as e:
+        except Exception as e:
             print(f"[Attempt {attempt}] Error: {e}")
             if attempt == max_retries:
                 print("Max retries reached. Giving up.")
