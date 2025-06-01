@@ -62,12 +62,22 @@ def process_sui_trace(checkpoint_number, checkpoint, txs):
     metrics = get_graph_metrics(G, {"block_number": checkpoint_number, "txs": len(txs)})
     return metrics
 
+def agg_load_compressed_file(data_path,limit,k):
+    it = load_compressed_file(data_path, limit)
+    while True:
+        chunk = list(next(it, None) for _ in range(k))
+        chunk = [x for x in chunk if x is not None]
+        if not chunk:
+            break
+        agg_txs = sum([txs for (_, _, txs) in chunk], [])
+        yield [chunk[0][0], chunk[0][1], agg_txs]
+
 def generate_data(data_path, output_path, processor, limit = None):
     write_header = not os.path.exists(output_path)
     max_pending = 1000
     with open(output_path, mode="a", newline="") as file:
         with ProcessPoolExecutor() as pool:
-            data_generator = load_compressed_file(data_path, limit)
+            data_generator = agg_load_compressed_file(data_path, limit, 10)
             futures = [
                 pool.submit(processor, *data) for data in islice(data_generator, max_pending)
             ]
@@ -98,11 +108,10 @@ def get_files(folder_path, extension):
 def main():
     dirpath = f"E:\\sui"
     output_path = "metrics.csv"
-    '''
     if os.path.exists(output_path):
         os.remove(output_path)
     for file in get_files(dirpath, ".h5"):
-        generate_data(file, output_path, process_sui_trace)'''
+        generate_data(file, output_path, process_sui_trace)
     plot_data(output_path)
 
 
@@ -114,6 +123,6 @@ def download_files(start: int, end: int, dirpath: str, filesize: int):
         save_to_file(os.path.join(dirpath, filename), traces_generator)
 
 if __name__ == "__main__":
-    # download_files(150001000, 150100000, "E:\\sui", 1000)
+    # download_files(150007858, 150007860, "E:\\sui", 1000)
     main()  
     
