@@ -41,7 +41,7 @@ def create_conflict_graph(txs: List[str], reads: Dict[str, Set[str]], writes: Di
         for tx1_hash, tx1_reads in reads.items():
             if tx0_hash != tx1_hash and not tx0_writes.isdisjoint(tx1_reads):
                 G.add_edge(tx0_hash, tx1_hash)
-        for tx1_hash, tx1_writes in reads.items():
+        for tx1_hash, tx1_writes in writes.items():
             # checks both tx0_hash != tx1_hash and removes redundent checks with >
             if tx0_hash > tx1_hash and not tx0_writes.isdisjoint(tx1_writes):
                 G.add_edge(tx0_hash, tx1_hash)
