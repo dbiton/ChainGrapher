@@ -24,7 +24,7 @@ def fetcher_sui(checkpoint_number: int):
         exit()
     return checkpoint_number, checkpoint, txs
 
-def post_with_retry(payload: Any, max_retries: int=5, base_delay: float=2.0) -> httpx.Response:
+def post_with_retry(payload: Any, max_retries: int=10, base_delay: float=2.0) -> httpx.Response:
     delay = base_delay
     for attempt in range(1, max_retries + 1):
         try:
