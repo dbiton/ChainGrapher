@@ -79,23 +79,30 @@ def get_checkpoint(checkpoint_index: int) -> dict:
     return response
 
 
-def get_transactions(txs_ids: List[str]):
-    payload = {
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "sui_multiGetTransactionBlocks",
-        "params": [txs_ids, {
-            "showInput": True,
-            "showRawInput": True,
-            "showEffects": True,
-            "showEvents": True,
-            "showObjectChanges": True,
-            "showBalanceChanges": True,
-            "showRawEffects": True
-        }]
-    }
-    response = post_with_retry(payload)
-    return response
+def get_transactions(txs_ids: List[str]) -> List[dict]:
+    all_results = []
+    for i in range(0, len(txs_ids), 50):
+        batch = txs_ids[i:i + 50]
+        payload = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "sui_multiGetTransactionBlocks",
+            "params": [
+                batch,
+                {
+                    "showInput": True,
+                    "showRawInput": True,
+                    "showEffects": True,
+                    "showEvents": True,
+                    "showObjectChanges": True,
+                    "showBalanceChanges": True,
+                    "showRawEffects": True
+                }
+            ]
+        }
+        batch_results = post_with_retry(payload)
+        all_results.extend(batch_results)
+    return all_results
 
 
 def get_transaction(tx_id: str) -> dict:
