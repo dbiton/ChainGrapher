@@ -135,29 +135,34 @@ def parse_sui_trace(txs):
     return reads, writes
 
 def parse_sui_tx_trace(tx):
-    write_addrs = set()
-    read_addrs = set()
-    # Actual writes made
-    if 'objectChanges' in tx:
-        for change in tx['objectChanges']:
-            write_addrs.add(change['objectId'])
-    # Pure-immutable reads
-    if 'effects' in tx:
-        effects = tx['effects']
-        for shared in effects.get('sharedObjects', []):
-            read_addrs.add(shared['objectId'])
-    # Potential reads due to taking &mut input but not writing to it
-    inputs = tx.get("transaction", {}) \
-         .get("data", {}) \
-         .get("transaction", {}) \
-         .get("inputs", [])
-    for inp in inputs:
-        # Filter for object inputs that are marked mutable:
-        if inp.get("type") == "object" and inp.get("mutable", True):
-            if "objectId" not in inp:
-                x = 3
-            read_addrs.add(inp["objectId"])
-    read_addrs -= write_addrs
+    write_addrs = {
+        change['objectId']
+        for change in tx.get('objectChanges', [])
+        if 'objectId' in change
+    }
+
+    effects = tx.get('effects', {})
+    pure_read_addrs = {
+        obj['objectId']
+        for obj in effects.get('sharedObjects', [])
+    }
+
+    inputs = (
+        tx.get('transaction', {})
+          .get('data', {})
+          .get('transaction', {})
+          .get('inputs', [])
+    )
+
+    potential_reads = {
+        inp['objectId']
+        for inp in inputs
+        if inp.get('type') == 'object'
+           and inp.get('mutable', False)
+           and inp['objectId'] not in write_addrs
+    }
+
+    read_addrs = pure_read_addrs | potential_reads
     return read_addrs, write_addrs
 
 def has_field(tx, field):
