@@ -2,38 +2,6 @@ from typing import Dict, List, Set, Tuple
 import networkx as nx
 import numpy as np
 
-def hex_to_bytes(s: str) -> bytes:
-    if isinstance(s, str) and s.startswith("0x"):
-        try:
-            s = s[2:]
-            if len(s) % 2 == 1:
-                s = '0' + s
-            return bytes.fromhex(s)
-        except ValueError:
-            raise ValueError(f"Invalid hexadecimal key: {s}")
-    return s
-
-def bytes_to_hex(b: bytes) -> bytes:
-    if isinstance(b, bytes):
-        bytes_as_hex = b.hex()
-        while bytes_as_hex[0] == "0" and len(bytes_as_hex) > 1:
-            bytes_as_hex = bytes_as_hex[1:]
-        return '0x' + bytes_as_hex
-    return b
-
-def apply_recursively(obj, f):
-    if isinstance(obj, dict):
-        new_dict = {}
-        for key, value in obj.items():
-            # Process the key
-            key = f(key)
-            new_dict[key] = apply_recursively(value, f)
-        return new_dict
-    elif isinstance(obj, list):
-        return [apply_recursively(item, f) for item in obj]
-    else:
-        return f(obj)
-
 def create_conflict_graph(txs: List[str], reads: Dict[str, Set[str]], writes: Dict[str, Set[str]]) -> nx.Graph:
     G = nx.Graph()
     G.add_nodes_from(txs)
@@ -42,8 +10,7 @@ def create_conflict_graph(txs: List[str], reads: Dict[str, Set[str]], writes: Di
             if tx0_hash != tx1_hash and not tx0_writes.isdisjoint(tx1_reads):
                 G.add_edge(tx0_hash, tx1_hash)
         for tx1_hash, tx1_writes in writes.items():
-            # checks both tx0_hash != tx1_hash and removes redundent checks with >
-            if tx0_hash > tx1_hash and not tx0_writes.isdisjoint(tx1_writes):
+            if not tx0_writes.isdisjoint(tx1_writes):
                 G.add_edge(tx0_hash, tx1_hash)
     return G
 
@@ -170,16 +137,26 @@ def parse_sui_trace(txs):
 def parse_sui_tx_trace(tx):
     write_addrs = set()
     read_addrs = set()
+    # Actual writes made
     if 'objectChanges' in tx:
         for change in tx['objectChanges']:
-            if change['type'] in {'created', 'mutated', 'unwrapped', 'wrapped', 'deleted', 'unwrappedThenDeleted'}:
-                write_addrs.add(change['objectId'])
+            write_addrs.add(change['objectId'])
+    # Pure-immutable reads
     if 'effects' in tx:
         effects = tx['effects']
-        for mod in effects.get('modifiedAtVersions', []):
-            read_addrs.add(mod['objectId'])
         for shared in effects.get('sharedObjects', []):
             read_addrs.add(shared['objectId'])
+    # Potential reads due to taking &mut input but not writing to it
+    inputs = tx.get("transaction", {}) \
+         .get("data", {}) \
+         .get("transaction", {}) \
+         .get("inputs", [])
+    for inp in inputs:
+        # Filter for object inputs that are marked mutable:
+        if inp.get("type") == "object" and inp.get("mutable", True):
+            if "objectId" not in inp:
+                x = 3
+            read_addrs.add(inp["objectId"])
     read_addrs -= write_addrs
     return read_addrs, write_addrs
 
