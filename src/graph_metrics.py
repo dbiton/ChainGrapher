@@ -1,5 +1,5 @@
 import random
-from typing import Dict
+from typing import Dict, List, Set
 import networkx as nx
 from networkx.algorithms.community import greedy_modularity_communities
 
@@ -67,8 +67,6 @@ def graph_modularity(G):
         return float('nan')
 
 
-
-
 def graph_diameter(G):
     try:
         if nx.is_connected(G):
@@ -87,6 +85,7 @@ def graph_density(graph):
     except Exception as e:
         print(f"Exception in graph_density: {e}")
         return float('nan')
+
 
 def graph_conflict_percentage(G):
     try:
@@ -220,7 +219,7 @@ def get_call_metrics(trace: dict) -> Dict[str, float]:
     return results
 
 
-def get_graph_metrics(graph: nx.Graph, additional_metrics={}) -> Dict[str, float]:
+def get_graph_metrics(graph: nx.Graph) -> Dict[str, float]:
     results = {
         "degree": graph_average_degree(graph),
         "greedy_color": graph_greedy_coloring(graph),
@@ -238,5 +237,4 @@ def get_graph_metrics(graph: nx.Graph, additional_metrics={}) -> Dict[str, float
         "vertex_cover_dummy_approx": get_vertex_cover_dummy_approx(graph),
         "vertex_cover_nx_approx": get_vertex_cover_nx_approx(graph)
     }
-    results.update(additional_metrics)
     return results
