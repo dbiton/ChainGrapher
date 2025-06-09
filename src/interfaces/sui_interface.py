@@ -104,4 +104,5 @@ class SuiInterface(Interface):
         }
 
         read_addrs = pure_read_addrs | potential_reads
+        read_addrs = read_addrs.difference(write_addrs)
         return read_addrs, write_addrs
