@@ -75,34 +75,26 @@ class SuiInterface(Interface):
             "txs": len(txs_traces)
         }
     
-    def _parse_tx(self, tx_trace):
+    def _parse_tx(self, tx):
         write_addrs = {
             change['objectId']
-            for change in tx_trace.get('objectChanges', [])
+            for change in tx.get('objectChanges', [])
             if 'objectId' in change
         }
-
-        effects = tx_trace.get('effects', {})
-        pure_read_addrs = {
+        shared_addrs = {
             obj['objectId']
-            for obj in effects.get('sharedObjects', [])
+            for obj in tx.get('effects', {}).get('sharedObjects', [])
         }
-
         inputs = (
-            tx_trace.get('transaction', {})
+            tx.get('transaction', {})
             .get('data', {})
             .get('transaction', {})
             .get('inputs', [])
         )
-
-        potential_reads = {
+        inputs_addrs = {
             inp['objectId']
             for inp in inputs
             if inp.get('type') == 'object'
-            and inp.get('mutable', False)
-            and inp['objectId'] not in write_addrs
         }
-
-        read_addrs = pure_read_addrs | potential_reads
-        read_addrs = read_addrs.difference(write_addrs)
+        read_addrs = (inputs_addrs | shared_addrs) - write_addrs
         return read_addrs, write_addrs
