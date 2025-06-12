@@ -1,6 +1,7 @@
 from typing import Dict, Set, List
 from interfaces.interface import Interface
 import os
+from collections import Counter
 
 class SuiInterface(Interface):
 
@@ -68,10 +69,29 @@ class SuiInterface(Interface):
         txs = [tx_trace["digest"] for tx_trace in txs_traces]
         return self._create_conflict_graph_from_readset_writeset(txs, reads, writes)
 
+    def _get_tx_type(self, tx):
+        return tx['transaction']['data']['transaction']['kind']
+
     def get_additional_metrics(self, block_number, checkpoint_trace) -> Dict[str, float]:
         checkpoint_trace, txs_traces = checkpoint_trace
+
+        txs_types = [self._get_tx_type(tx) for tx in txs_traces]
+        txs_type_counter = Counter(txs_types)
+
+        user_kinds = {
+            "ProgrammableTransaction", "TransferObject", "TransferSui",
+            "Pay", "PaySui", "PayAllSui", "SplitCoin", "MergeCoin", "Publish"
+        }
+
+        system_kinds = {
+            "ConsensusCommitPrologue", "ConsensusCommitPrologueV1",
+            "ChangeEpoch", "Genesis", "RandomnessStateUpdate"
+        }
+
         return {
-            "block_number": block_number, 
+            "user_tx_count": sum(txs_type_counter.get(k, 0) for k in user_kinds),
+            "system_tx_count": sum(txs_type_counter.get(k, 0) for k in system_kinds),
+            "block_number": block_number,
             "txs": len(txs_traces)
         }
     
