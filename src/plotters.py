@@ -159,7 +159,7 @@ def plot_data(csv_path, is_callTracer = False):
                 txs_max = split_values[i_tx_group]
 
             # Select the data for the current tx_group
-            df_group = df.loc[(df["txs"] < txs_max) & (df["txs"] > txs_min)].sort_values(by=prop)
+            df_group = df.loc[(df["txs"] <= txs_max) & (df["txs"] > txs_min)].sort_values(by=prop)
             
             # Copy to avoid SettingWithCopyWarning
             df_group = df_group.copy()
