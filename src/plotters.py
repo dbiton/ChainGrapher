@@ -134,6 +134,9 @@ def plot_data(csv_path, is_callTracer = False):
     plot_block_size_distribution(df)
     df['min_path_chromatic_ratio'] = df['longest_path_length_monte_carlo'] / df['greedy_color']
     df['max_path_chromatic_ratio'] = df['largest_conn_comp'] / df['clique_number']
+    df['user_tx_ratio'] = df['user_tx_count'] / df['txs']
+    df['system_tx_ratio'] = df['system_tx_count'] / df['txs']
+    
     
     # Ensure the data has X, Y, and other columns
     if "density" not in df.columns or "txs" not in df.columns:
@@ -142,7 +145,7 @@ def plot_data(csv_path, is_callTracer = False):
     # Extract X, Y, and property columns
     properties = df.drop(columns=["density"]).columns
     
-    split_values = df["txs"].quantile([i / (lines_count + 1) for i in range(1, lines_count + 1)])
+    split_values = df["txs"].quantile([i / (lines_count) for i in range(1, lines_count)])
     split_values = sorted(list(split_values))
     # Create heatmaps for each property
     for prop in properties:
@@ -198,3 +201,5 @@ def plot_data(csv_path, is_callTracer = False):
         plt.close()
 
     print("Plots have been generated and saved as PNG files.")
+    for prop in df.columns:
+        print(prop, df[prop].mean(), df[prop].std())    
