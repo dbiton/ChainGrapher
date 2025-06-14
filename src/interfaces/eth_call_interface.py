@@ -5,7 +5,7 @@ import networkx as nx
 import numpy as np
 
 
-class EthPerstateInterface(Interface):
+class EthCallInterface(Interface):
 
     def __init__(self):
         rpc_url = os.getenv("ETH_RPC_URL")

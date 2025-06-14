@@ -136,7 +136,7 @@ def plot_data(csv_path, is_callTracer = False):
     df['max_path_chromatic_ratio'] = df['largest_conn_comp'] / df['clique_number']
     df['user_tx_ratio'] = df['user_tx_count'] / df['txs']
     df['system_tx_ratio'] = df['system_tx_count'] / df['txs']
-    
+    df['mean_sui_transfered'] = df['total_sui_transfered'] / df['txs']
     
     # Ensure the data has X, Y, and other columns
     if "density" not in df.columns or "txs" not in df.columns:

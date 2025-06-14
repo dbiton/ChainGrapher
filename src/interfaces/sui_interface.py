@@ -72,9 +72,14 @@ class SuiInterface(Interface):
     def _get_tx_type(self, tx):
         return tx['transaction']['data']['transaction']['kind']
 
-    def get_additional_metrics(self, block_number, checkpoint_trace) -> Dict[str, float]:
-        checkpoint_trace, txs_traces = checkpoint_trace
+    def get_additional_metrics(self, block_number, trace) -> Dict[str, float]:
+        checkpoint_trace, txs_traces = trace
 
+        total_sui_transfered = 0
+        for tx in txs_traces:
+            tx_total_transfered = [abs(int(e['amount'])) for e in tx['balanceChanges'] if e['coinType'] == '0x2::sui::SUI']
+            total_sui_transfered += sum(tx_total_transfered)
+        
         txs_types = [self._get_tx_type(tx) for tx in txs_traces]
         txs_type_counter = Counter(txs_types)
 
@@ -92,6 +97,7 @@ class SuiInterface(Interface):
             "user_tx_count": sum(txs_type_counter.get(k, 0) for k in user_kinds),
             "system_tx_count": sum(txs_type_counter.get(k, 0) for k in system_kinds),
             "block_number": block_number,
+            "total_sui_transfered": total_sui_transfered,
             "txs": len(txs_traces)
         }
     

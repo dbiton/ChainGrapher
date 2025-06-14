@@ -73,8 +73,8 @@ class IotaInterface(Interface):
     def _get_tx_type(self, tx):
         return tx['transaction']['data']['transaction']['kind']
     
-    def get_additional_metrics(self, block_number, checkpoint_trace) -> Dict[str, float]:
-        checkpoint_trace, txs_traces = checkpoint_trace
+    def get_additional_metrics(self, block_number, trace) -> Dict[str, float]:
+        checkpoint_trace, txs_traces = trace
 
         txs_types = [self._get_tx_type(tx) for tx in txs_traces]
         txs_type_counter = Counter(txs_types)
