@@ -25,7 +25,7 @@ class Interface:
                 if tx0_hash != tx1_hash and not tx0_writes.isdisjoint(tx1_reads):
                     G.add_edge(tx0_hash, tx1_hash)
             for tx1_hash, tx1_writes in writes.items():
-                if not tx0_writes.isdisjoint(tx1_writes):
+                if tx0_hash != tx1_hash and not tx0_writes.isdisjoint(tx1_writes):
                     G.add_edge(tx0_hash, tx1_hash)
         return G
     
