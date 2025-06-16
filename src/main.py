@@ -19,7 +19,7 @@ from fetchers import fetch_parallel, fetch_serial
 sui_interface = SuiInterface()
 iota_interface = IotaInterface()
 eth_interface = EthPerstateInterface()
-crypto_interface = eth_interface
+crypto_interface = sui_interface
 
 def process_trace(block_number, *trace_args):
     print(f"Processing {block_number}...")
@@ -77,11 +77,11 @@ def get_files(folder_path, extension):
 
 def main():
     output_path = "metrics.csv"
-    '''dirpath = "E:\\sui"
+    dirpath = "traces/sui"
     if os.path.exists(output_path):
         os.remove(output_path)
     for file in get_files(dirpath, ".h5"):
-        generate_data(file, output_path)'''
+        generate_data(file, output_path)
     plot_data(output_path)
     
 
@@ -97,5 +97,5 @@ def download_files(start: int, end: int, dirpath: str, filesize: int):
 
 
 if __name__ == "__main__":
-    download_files(22039000, 22040000, ".", 1000)
-    # main()
+    # download_files(22039000, 22040000, ".", 1000)
+    main()

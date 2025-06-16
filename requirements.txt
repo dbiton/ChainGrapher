@@ -3,3 +3,4 @@ networkx
 pandas
 python-dotenv
 httpx
+h5py

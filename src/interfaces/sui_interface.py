@@ -81,25 +81,40 @@ class SuiInterface(Interface):
             total_sui_transfered += sum(tx_total_transfered)
         
         txs_types = [self._get_tx_type(tx) for tx in txs_traces]
-        txs_type_counter = Counter(txs_types)
-
+        txs_kind_counter = Counter(txs_types)
+        
         user_kinds = {
             "ProgrammableTransaction", "TransferObject", "TransferSui",
             "Pay", "PaySui", "PayAllSui", "SplitCoin", "MergeCoin", "Publish"
         }
 
         system_kinds = {
-            "ConsensusCommitPrologue", "ConsensusCommitPrologueV1",
+            "ConsensusCommitPrologue", "ConsensusCommitPrologueV1", "ConsensusCommitPrologueV3",
             "ChangeEpoch", "Genesis", "RandomnessStateUpdate"
         }
 
-        return {
-            "user_tx_count": sum(txs_type_counter.get(k, 0) for k in user_kinds),
-            "system_tx_count": sum(txs_type_counter.get(k, 0) for k in system_kinds),
+        all_kinds = user_kinds | system_kinds
+        unknown_kinds = set(txs_kind_counter.keys()).difference(all_kinds)
+        if len(unknown_kinds) > 0:
+            print(f"unknown kinds {unknown_kinds}")
+            exit()
+        
+        timestamp = checkpoint_trace['timestampMs']
+        epoch = checkpoint_trace['epoch']
+        digest = checkpoint_trace['digest']
+        additional_metrics = {
+            "digest": digest,
+            "epoch": epoch,
+            "user_tx_count": sum(txs_kind_counter.get(k, 0) for k in user_kinds),
+            "system_tx_count": sum(txs_kind_counter.get(k, 0) for k in system_kinds),
             "block_number": block_number,
+            "timestampMs": timestamp,
             "total_sui_transfered": total_sui_transfered,
             "txs": len(txs_traces)
         }
+        for kind in all_kinds:
+            additional_metrics[f"{kind}_count"] = txs_kind_counter.get(kind, 0)
+        return additional_metrics
     
     def _parse_tx(self, tx):
         write_addrs = {
