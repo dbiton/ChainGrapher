@@ -120,7 +120,7 @@ class SuiInterface(Interface):
         return [
             (fig_pie, "piechart.png"), 
             self.get_tx_count_by_hour_of_day_figure(df), 
-            self.get_tx_count_over_time_figure(df, 12)
+            self.get_tx_count_over_time_figure(df, 64)
         ]
     
         
@@ -142,7 +142,7 @@ class SuiInterface(Interface):
 
         system_kinds = {
             "ConsensusCommitPrologue", "ConsensusCommitPrologueV1", "ConsensusCommitPrologueV3",
-            "ChangeEpoch", "Genesis", "RandomnessStateUpdate"
+            "ChangeEpoch", "Genesis", "RandomnessStateUpdate", 'EndOfEpochTransaction', 'AuthenticatorStateUpdate'
         }
 
         all_kinds = user_kinds | system_kinds
