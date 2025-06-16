@@ -1,7 +1,12 @@
+import os
 from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
 import networkx as nx
+
+from interfaces.interface import Interface
+
+FIGS_DIR = 'figures'
 
 def plot_graph(graph):
     plt.figure(figsize=(8, 6))
@@ -117,7 +122,7 @@ def plot_call_metrics(_df):
     plt.savefig(f"figures\\call_metrics.png")
     plt.close()
 
-def plot_data(csv_path, is_callTracer = False):
+def plot_data(csv_path, chain_interface: Interface):
     markers = ["o", "s", "^", "v", "D", "*"]
     
     lines_count = 4
@@ -127,6 +132,11 @@ def plot_data(csv_path, is_callTracer = False):
     df = pd.read_csv(csv_path)
     df = df.drop_duplicates(subset='block_number', keep='first')
 
+    additional_figs = chain_interface.get_additional_figures(df)
+    for (fig, fig_name) in additional_figs:
+        fig.savefig(os.path.join(FIGS_DIR, fig_name))
+        plt.close(fig)
+    
     if is_callTracer:    
         df['ratio_txs_value_transfer'] = df['count_txs_value_transfer'] / df['txs']
         plot_call_metrics(df)

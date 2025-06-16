@@ -2,6 +2,9 @@ from typing import Dict, Tuple, Set, Any, List
 import httpx
 import time
 import networkx as nx
+from matplotlib.figure import Figure
+import pandas as pd
+
 class Interface:
 
     def __init__(self, fetch_parallel: bool, url_rpc: str):
@@ -13,6 +16,9 @@ class Interface:
     
     def get_conflict_graph(self, block_trace) -> Tuple[Dict[str, Set[str]],Dict[str, Set[str]]]:
         pass
+    
+    def get_additional_figures(self, df: pd.DataFrame) -> List[Tuple[str, Figure]]:
+        return []
     
     def get_additional_metrics(self, block_number, trace) -> Dict[str, float]:
         return {}

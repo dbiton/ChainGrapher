@@ -1,4 +1,8 @@
-from typing import Dict, Set, List
+from typing import Dict, Set, List, Tuple
+
+from matplotlib import pyplot as plt
+from matplotlib.figure import Figure
+import pandas as pd
 from interfaces.interface import Interface
 import os
 from collections import Counter
@@ -72,6 +76,54 @@ class SuiInterface(Interface):
     def _get_tx_type(self, tx):
         return tx['transaction']['data']['transaction']['kind']
 
+    def get_tx_count_over_time_figure(self, df: pd.DataFrame, n_buckets: int) -> Figure:
+        df['datetime'] = pd.to_datetime(df['timestampMs'], unit='ms', utc=True)
+        df_sorted = df.sort_values('datetime')
+        df_sorted['bucket'] = pd.qcut(df_sorted['datetime'], q=n_buckets, labels=False)
+        txs_per_bucket = df_sorted.groupby('bucket').size()
+        bucket_midpoints = df_sorted.groupby('bucket')['datetime'].apply(lambda x: x.iloc[len(x)//2])
+        fig, ax = plt.subplots()
+        ax.plot(bucket_midpoints, txs_per_bucket, marker='o')
+        ax.set_title(f"Transaction Count Over Time ({n_buckets} Buckets)")
+        ax.set_xlabel("Time")
+        ax.set_ylabel("Number of Transactions")
+        fig.autofmt_xdate()
+        return fig, "tx_count_over_time.png"
+
+    def get_tx_count_by_hour_of_day_figure(self, df: pd.DataFrame) -> Figure:
+        df['hour'] = df['datetime'].dt.hour
+        txs_by_hour = df['hour'].value_counts().sort_index()
+        fig, ax = plt.subplots()
+        ax.bar(txs_by_hour.index, txs_by_hour.values, width=0.8)
+        ax.set_xticks(range(24))
+        ax.set_xlabel("Hour of Day (UTC)")
+        ax.set_ylabel("Number of Transactions")
+        ax.set_title("Transaction Count by Hour of Day")
+        return fig, "tx_count_by_hour_of_day.png"
+    
+    def get_additional_figures(self, df: pd.DataFrame) -> List[Tuple[str, Figure]]:
+        txs_kinds_cols = [col for col in df.columns if col.startswith('kind_') and col.endswith('_count')]
+        txs_kinds_total_counts = {col: df[col].sum() for col in txs_kinds_cols}
+        
+        sorted_items = sorted(txs_kinds_total_counts.items(), key=lambda x: x[1], reverse=True)
+        labels, sizes = zip(*sorted_items)
+        labels = [v.split('_')[1] for v in txs_kinds_total_counts.keys()]
+
+        fig_pie, ax = plt.subplots()
+        ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=140)
+        ax.set_title("Transaction Kind Distribution (Ordered by Count)")
+        ax.axis('equal')  # Equal aspect ratio ensures the pie is circular
+
+        df['datetime'] = pd.to_datetime(df['timestampMs'], unit='ms', utc=True)
+
+        
+        return [
+            (fig_pie, "piechart.png"), 
+            self.get_tx_count_by_hour_of_day_figure(df), 
+            self.get_tx_count_over_time_figure(df, 12)
+        ]
+    
+        
     def get_additional_metrics(self, block_number, trace) -> Dict[str, float]:
         checkpoint_trace, txs_traces = trace
 
@@ -113,7 +165,7 @@ class SuiInterface(Interface):
             "txs": len(txs_traces)
         }
         for kind in all_kinds:
-            additional_metrics[f"{kind}_count"] = txs_kind_counter.get(kind, 0)
+            additional_metrics[f"kind_{kind}_count"] = txs_kind_counter.get(kind, 0)
         return additional_metrics
     
     def _parse_tx(self, tx):
