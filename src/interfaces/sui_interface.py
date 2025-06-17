@@ -2,10 +2,21 @@ from typing import Dict, Set, List, Tuple
 
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
+import numpy as np
 import pandas as pd
 from interfaces.interface import Interface
 import os
 from collections import Counter
+
+USER_KINDS = {
+    "ProgrammableTransaction", "TransferObject", "TransferSui",
+    "Pay", "PaySui", "PayAllSui", "SplitCoin", "MergeCoin", "Publish"
+}
+
+SYSTEM_KINDS = {
+    "ConsensusCommitPrologue", "ConsensusCommitPrologueV1", "ConsensusCommitPrologueV3",
+    "ChangeEpoch", "Genesis", "RandomnessStateUpdate", 'EndOfEpochTransaction', 'AuthenticatorStateUpdate'
+}
 
 class SuiInterface(Interface):
 
@@ -76,51 +87,104 @@ class SuiInterface(Interface):
     def _get_tx_type(self, tx):
         return tx['transaction']['data']['transaction']['kind']
 
-    def get_tx_count_over_time_figure(self, df: pd.DataFrame, n_buckets: int) -> Figure:
-        df['datetime'] = pd.to_datetime(df['timestampMs'], unit='ms', utc=True)
+    def get_ops_datetime_figure(self, df: pd.DataFrame, n_buckets: int) -> Figure:
         df_sorted = df.sort_values('datetime')
-        df_sorted['bucket'] = pd.qcut(df_sorted['datetime'], q=n_buckets, labels=False)
-        txs_per_bucket = df_sorted.groupby('bucket').size()
-        bucket_midpoints = df_sorted.groupby('bucket')['datetime'].apply(lambda x: x.iloc[len(x)//2])
-        fig, ax = plt.subplots()
-        ax.plot(bucket_midpoints, txs_per_bucket, marker='o')
-        ax.set_title(f"Transaction Count Over Time ({n_buckets} Buckets)")
-        ax.set_xlabel("Time")
-        ax.set_ylabel("Number of Transactions")
-        fig.autofmt_xdate()
-        return fig, "tx_count_over_time.png"
 
-    def get_tx_count_by_hour_of_day_figure(self, df: pd.DataFrame) -> Figure:
-        df['hour'] = df['datetime'].dt.hour
-        txs_by_hour = df['hour'].value_counts().sort_index()
+        # Define time range and bucket edges
+        start = df_sorted['datetime'].min()
+        end = df_sorted['datetime'].max()
+        bucket_edges = pd.date_range(start=start, end=end, periods=n_buckets + 1)
+
+        # Assign each row to a bucket based on datetime
+        df_sorted['bucket'] = pd.cut(df_sorted['datetime'], bins=bucket_edges, labels=False, include_lowest=True)
+
+        # Group by bucket
+        grouped = df_sorted.groupby('bucket')
+
+        # Total transactions per bucket
+        txs_per_bucket = grouped['txs'].sum()
+        cks_per_bucket = grouped['txs'].count()
+
+        # Duration per bucket in seconds (should be equal for all, but compute for accuracy)
+        durations = [(bucket_edges[i+1] - bucket_edges[i]).total_seconds() for i in range(n_buckets)]
+
+        # Avoid division by zero
+        durations = np.array(durations)
+        durations[durations == 0] = 1
+
+        # Operations per second
+        txs_per_sec = txs_per_bucket.values / durations
+        cks_per_sec = cks_per_bucket.values / durations
+
+        # Midpoint of each bucket
+        bucket_midpoints = [bucket_edges[i] + (bucket_edges[i+1] - bucket_edges[i]) / 2 for i in range(n_buckets)]
+
+        # Plot
         fig, ax = plt.subplots()
-        ax.bar(txs_by_hour.index, txs_by_hour.values, width=0.8)
+        ax.plot(bucket_midpoints, txs_per_sec, marker='o', label='txs')
+        ax.plot(bucket_midpoints, cks_per_sec, marker='x', label='checkpoints')
+        ax.set_title(f"Operations per Second Over Time ({n_buckets} Buckets)")
+        ax.set_xlabel("Time")
+        ax.set_ylabel("Operations per Second")
+        fig.autofmt_xdate()
+
+        return fig, "ops_vs_datetime.png"
+
+    def get_ops_hour_figure(self, df: pd.DataFrame) -> Figure:
+        df = df.copy()
+        df['hour'] = df['datetime'].dt.hour
+        df['date'] = df['datetime'].dt.date
+
+        # Total transactions per hour of day
+        txs_per_hour = df.groupby('hour')['txs'].sum()
+
+        # Count how many times each hour appears (i.e., how many distinct days had data at that hour)
+        active_days_per_hour = df.groupby('hour')['date'].nunique()
+
+        # Calculate ops/sec: total txs / (number of occurrences * 3600 seconds)
+        seconds_per_hour = 3600
+        ops_per_sec = txs_per_hour / (active_days_per_hour * seconds_per_hour)
+
+        # Fill in missing hours (0–23) with 0s
+        ops_per_sec = ops_per_sec.reindex(range(24), fill_value=0)
+
+        # Plot
+        fig, ax = plt.subplots()
+        ax.bar(ops_per_sec.index, ops_per_sec.values, width=0.8)
         ax.set_xticks(range(24))
         ax.set_xlabel("Hour of Day (UTC)")
-        ax.set_ylabel("Number of Transactions")
-        ax.set_title("Transaction Count by Hour of Day")
-        return fig, "tx_count_by_hour_of_day.png"
+        ax.set_ylabel("Operations per Second")
+        ax.set_title("Average Operations per Second by Hour of Day")
+        return fig, "ops_vs_hour_of_day.png"
     
-    def get_additional_figures(self, df: pd.DataFrame) -> List[Tuple[str, Figure]]:
+    def get_txs_kinds_piechart_figure(self, df: pd.DataFrame) -> Figure:
         txs_kinds_cols = [col for col in df.columns if col.startswith('kind_') and col.endswith('_count')]
         txs_kinds_total_counts = {col: df[col].sum() for col in txs_kinds_cols}
-        
         sorted_items = sorted(txs_kinds_total_counts.items(), key=lambda x: x[1], reverse=True)
         labels, sizes = zip(*sorted_items)
-        labels = [v.split('_')[1] for v in txs_kinds_total_counts.keys()]
-
-        fig_pie, ax = plt.subplots()
-        ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=140)
+        labels = [label.replace('kind_', '').replace('_count', '') for label in labels]
+        colors = []
+        for label in labels:
+            if label in USER_KINDS:
+                colors.append(plt.cm.Reds(0.4 + 0.6 * labels.index(label) / len(labels)))
+            elif label in SYSTEM_KINDS:
+                colors.append(plt.cm.Blues(0.4 + 0.6 * labels.index(label) / len(labels)))
+            else:
+                colors.append("gray")
+        fig, ax = plt.subplots()
+        ax.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=140)
         ax.set_title("Transaction Kind Distribution (Ordered by Count)")
-        ax.axis('equal')  # Equal aspect ratio ensures the pie is circular
-
+        ax.axis('equal')
+        return fig, "piechart_txs_kinds.png"
+        
+    
+    def get_additional_figures(self, df: pd.DataFrame) -> List[Tuple[str, Figure]]:
         df['datetime'] = pd.to_datetime(df['timestampMs'], unit='ms', utc=True)
 
-        
         return [
-            (fig_pie, "piechart.png"), 
-            self.get_tx_count_by_hour_of_day_figure(df), 
-            self.get_tx_count_over_time_figure(df, 64)
+            self.get_txs_kinds_piechart_figure(df), 
+            self.get_ops_hour_figure(df), 
+            self.get_ops_datetime_figure(df, 32)
         ]
     
         
@@ -134,22 +198,12 @@ class SuiInterface(Interface):
         
         txs_types = [self._get_tx_type(tx) for tx in txs_traces]
         txs_kind_counter = Counter(txs_types)
-        
-        user_kinds = {
-            "ProgrammableTransaction", "TransferObject", "TransferSui",
-            "Pay", "PaySui", "PayAllSui", "SplitCoin", "MergeCoin", "Publish"
-        }
-
-        system_kinds = {
-            "ConsensusCommitPrologue", "ConsensusCommitPrologueV1", "ConsensusCommitPrologueV3",
-            "ChangeEpoch", "Genesis", "RandomnessStateUpdate", 'EndOfEpochTransaction', 'AuthenticatorStateUpdate'
-        }
-
-        all_kinds = user_kinds | system_kinds
+    
+        all_kinds = USER_KINDS | SYSTEM_KINDS
         unknown_kinds = set(txs_kind_counter.keys()).difference(all_kinds)
         if len(unknown_kinds) > 0:
-            print(f"unknown kinds {unknown_kinds}")
-            exit()
+            with open("log.txt", "a") as f:
+                f.writelines([f"unknown kinds {unknown_kinds}"])
         
         timestamp = checkpoint_trace['timestampMs']
         epoch = checkpoint_trace['epoch']
@@ -157,8 +211,8 @@ class SuiInterface(Interface):
         additional_metrics = {
             "digest": digest,
             "epoch": epoch,
-            "user_tx_count": sum(txs_kind_counter.get(k, 0) for k in user_kinds),
-            "system_tx_count": sum(txs_kind_counter.get(k, 0) for k in system_kinds),
+            "user_tx_count": sum(txs_kind_counter.get(k, 0) for k in USER_KINDS),
+            "system_tx_count": sum(txs_kind_counter.get(k, 0) for k in SYSTEM_KINDS),
             "block_number": block_number,
             "timestampMs": timestamp,
             "total_sui_transfered": total_sui_transfered,
