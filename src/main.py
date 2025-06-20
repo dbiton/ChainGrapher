@@ -24,8 +24,11 @@ crypto_interface = sui_interface
 
 def process_trace(block_number, *trace_args):
     print(f"Processing {block_number}...")
+    print(f"Getting additional metrics {block_number}...")
     metrics = crypto_interface.get_additional_metrics(block_number, trace_args)
+    print(f"Creating conflict graph {block_number}...")
     G = crypto_interface.get_conflict_graph(trace_args)
+    print(f"Getting graph metrics {block_number}...")
     metrics.update(get_graph_metrics(G))
     return metrics
 
@@ -43,9 +46,9 @@ def agg_load_compressed_file(dirpath, limit, k):
 
 
 def generate_data(dirpath, output_path, limit=None):
-    data_generator = agg_load_compressed_file(dirpath, limit, 1000)
+    data_generator = agg_load_compressed_file(dirpath, limit, 10)
     write_header = not os.path.exists(output_path)
-    max_pending = 16
+    max_pending = os.cpu_count()
     with open(output_path, mode="a", newline="") as file:
         with ProcessPoolExecutor() as pool:
             futures = [
@@ -59,10 +62,12 @@ def generate_data(dirpath, output_path, limit=None):
                 futures = futures[1:]
                 result = future.result()
                 if result is not None:
+                    sorted_keys = sorted(result.keys())
+                    sorted_values = [result[k] for k in sorted_keys]
                     if write_header:
                         write_header = False
-                        writer.writerow(result.keys())
-                    writer.writerow(result.values())
+                        writer.writerow(sorted_keys)
+                    writer.writerow(sorted_values)
                     print(f"wrote result {i} to output csv")
                     i += 1
                 if not all_submitted:
