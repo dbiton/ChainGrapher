@@ -3,6 +3,7 @@ from itertools import islice
 import os
 from dotenv import load_dotenv
 from concurrent.futures import ProcessPoolExecutor
+import itertools
 
 load_dotenv()
 
@@ -29,8 +30,9 @@ def process_trace(block_number, *trace_args):
     return metrics
 
 
-def agg_load_compressed_file(data_path, limit, k):
-    it = load_compressed_file(data_path, limit)
+def agg_load_compressed_file(dirpath, limit, k):
+    generators = [load_compressed_file(filepath) for filepath in get_files(dirpath, ".h5")]
+    it = itertools.chain.from_iterable(generators)
     while True:
         chunk = list(next(it, None) for _ in range(k))
         chunk = [x for x in chunk if x is not None]
@@ -40,12 +42,12 @@ def agg_load_compressed_file(data_path, limit, k):
         yield [chunk[0][0], chunk[0][1], agg_txs]
 
 
-def generate_data(data_path, output_path, limit=None):
+def generate_data(dirpath, output_path, limit=None):
+    data_generator = agg_load_compressed_file(dirpath, limit, 1000)
     write_header = not os.path.exists(output_path)
-    max_pending = 1000
+    max_pending = 16
     with open(output_path, mode="a", newline="") as file:
         with ProcessPoolExecutor() as pool:
-            data_generator = agg_load_compressed_file(data_path, limit, 10)
             futures = [
                 pool.submit(process_trace, *data) for data in islice(data_generator, max_pending)
             ]
@@ -76,13 +78,12 @@ def get_files(folder_path, extension):
 
 
 def main():
-    output_path = "metrics.csv"
-    dirpath = "traces/sui"
+    output_path = "metrics_agg1000.csv"
+    dirpath = "E:\\sui"
     if os.path.exists(output_path):
         os.remove(output_path)
-    for file in get_files(dirpath, ".h5"):
-        generate_data(file, output_path)
-    plot_data(output_path)
+    generate_data(dirpath, output_path)
+    plot_data(output_path, crypto_interface)
     
 
 def download_files(start: int, end: int, dirpath: str, filesize: int):
