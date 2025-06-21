@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Dict, Set, List, Tuple
 
 from matplotlib import pyplot as plt
@@ -23,6 +24,36 @@ class SuiInterface(Interface):
     def __init__(self):
         rpc_url = os.getenv("SUI_RPC_URL")
         super().__init__(True, rpc_url)
+
+    def _find_checkpoint_by_date(self, target_dt: datetime, search_range=(0, 150000000)) -> int:
+        target_ms = int(target_dt.timestamp() * 1000)
+        low, high = search_range
+        best_checkpoint = -1
+        best_diff = float("inf")
+
+        while low <= high:
+            mid = (low + high) // 2
+            checkpoint = self._fetch_checkpoint(mid)
+            if checkpoint is None or "timestampMs" not in checkpoint:
+                high = mid - 1
+                continue
+
+            ts = int(checkpoint["timestampMs"])
+            counttx = len(checkpoint['transactions'])
+            diff = abs(ts - target_ms)
+            print("Checkpoint", mid, "|", counttx, "TX |", diff / 1000, "SEC OFFSET FROM", target_dt)
+            if diff < best_diff:
+                best_diff = diff
+                best_checkpoint = mid
+
+            if ts < target_ms:
+                low = mid + 1
+            elif ts > target_ms:
+                high = mid - 1
+            else:
+                return mid
+
+        return best_checkpoint
 
     def _fetch_checkpoint(self, checkpoint_id: int) -> dict:
         payload = {
