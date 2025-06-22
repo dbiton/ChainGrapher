@@ -55,6 +55,20 @@ class SuiInterface(Interface):
 
         return best_checkpoint
 
+    def _fetch_checkpoints(self, checkpoint_id: int = 0, limit: int = 50) -> list:
+        payload = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "sui_getCheckpoints",
+            "params": [{
+                "cursor": str(checkpoint_id),
+                "limit": limit,
+                "descending_order": False
+            }]
+        }
+        response = self._post_with_retry(payload)
+        return response
+    
     def _fetch_checkpoint(self, checkpoint_id: int) -> dict:
         payload = {
             "jsonrpc": "2.0",
@@ -218,6 +232,43 @@ class SuiInterface(Interface):
             self.get_ops_datetime_figure(df, 16)
         ]
     
+     
+    def _calc_addrs_stats(self, txs_traces):
+        count_inputs = count_writes = count_shared_objects = 0
+        count_mutable_shared = count_writes_inputs = count_writes_shared_objects = 0
+        for tx in txs_traces:
+            inputs = (
+                tx.get('transaction', {})
+                .get('data', {})
+                .get('transaction', {})
+                .get('inputs', [])
+            )
+            inputs_addrs = {
+                inp['objectId']
+                for inp in inputs
+                if inp.get('type') == 'object'
+            }
+            write_addrs = {
+                change['objectId']
+                for change in tx.get('objectChanges', [])
+                if 'objectId' in change
+            }
+            shared_addrs = {
+                obj['objectId']
+                for obj in tx.get('effects', {}).get('sharedObjects', [])
+            }
+            mutable_inputs = {
+                inp['objectId']
+                for inp in inputs
+                if inp.get('type') == 'object' and inp.get('mutable', False)
+            }
+            count_mutable_shared += len(mutable_inputs)
+            count_inputs += len(inputs)
+            count_writes += len(write_addrs)
+            count_shared_objects += len(shared_addrs)
+            count_writes_inputs += len(inputs_addrs & write_addrs)
+            count_writes_shared_objects += len(shared_addrs & write_addrs)
+        return count_inputs, count_shared_objects, count_writes, count_writes_inputs, count_writes_shared_objects
         
     def get_additional_metrics(self, block_number, trace) -> Dict[str, float]:
         checkpoint_trace, txs_traces = trace
@@ -235,7 +286,19 @@ class SuiInterface(Interface):
         timestamp = checkpoint_trace['timestampMs']
         epoch = checkpoint_trace['epoch']
         digest = checkpoint_trace['digest']
+        (
+            count_inputs, 
+            count_shared_objects, 
+            count_writes, 
+            count_writes_inputs, 
+            count_writes_shared_objects
+        ) = self._calc_addrs_stats(txs_traces)
         additional_metrics = {
+            "count_inputs": count_inputs, 
+            "count_shared_objects": count_shared_objects, 
+            "count_writes": count_writes, 
+            "count_writes_inputs": count_writes_inputs, 
+            "count_writes_shared_objects": count_writes_shared_objects,
             "digest": digest,
             "epoch": epoch,
             "user_tx_count": sum(txs_kind_counter.get(k, 0) for k in USER_KINDS),
