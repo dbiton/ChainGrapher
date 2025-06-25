@@ -215,7 +215,7 @@ class SuiInterface(Interface):
         return [
             self.get_txs_kinds_piechart_figure(df), 
             self.get_ops_hour_figure(df), 
-            self.get_ops_datetime_figure(df, 32)
+            self.get_ops_datetime_figure(df, 16)
         ]
     
         
@@ -231,10 +231,6 @@ class SuiInterface(Interface):
         txs_kind_counter = Counter(txs_types)
     
         all_kinds = USER_KINDS | SYSTEM_KINDS
-        unknown_kinds = set(txs_kind_counter.keys()).difference(all_kinds)
-        if len(unknown_kinds) > 0:
-            with open("log.txt", "a") as f:
-                f.writelines([f"unknown kinds {unknown_kinds}"])
         
         timestamp = checkpoint_trace['timestampMs']
         epoch = checkpoint_trace['epoch']

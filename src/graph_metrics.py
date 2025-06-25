@@ -2,7 +2,10 @@ import random
 from typing import Dict, List, Set
 import networkx as nx
 from networkx.algorithms.community import greedy_modularity_communities
+from networkx.algorithms.approximation.clique import max_clique
 
+import sys
+sys.setrecursionlimit(100000)
 
 def graph_average_degree(graph):
     try:
@@ -137,6 +140,12 @@ def graph_largest_connected_component_size(G):
         print(f"Exception in graph_largest_connected_component_size: {e}")
         return float('nan')
 
+def graph_clique_approx(graph):
+    try:
+        return len(max_clique(graph))
+    except Exception as e:
+        print(f"Exception in graph_clique_number: {e}")
+        return float('nan')
 
 def graph_clique(graph):
     try:
@@ -221,20 +230,21 @@ def get_call_metrics(trace: dict) -> Dict[str, float]:
 
 def get_graph_metrics(graph: nx.Graph) -> Dict[str, float]:
     results = {
-        "degree": graph_average_degree(graph),
-        "greedy_color": graph_greedy_coloring(graph),
-        "assortativity": graph_assortativity(graph),
-        "cluster_coe": graph_cluster_coe(graph),
-        "modularity": graph_modularity(graph),
-        "transitivity": graph_transitivity(graph),
-        "diameter": graph_diameter(graph),
-        "clique_number": graph_clique(graph),
-        "density": graph_density(graph),
-        "largest_conn_comp": graph_largest_connected_component_size(graph),
-        "longest_path_length_monte_carlo": graph_longest_path_length(graph),
-        "max_degree": graph_max_degree(graph),
-        "vertex_cover_pop_max_deg_approx": get_vertex_cover_pop_max_deg_approx(graph),
-        "vertex_cover_dummy_approx": get_vertex_cover_dummy_approx(graph),
-        "vertex_cover_nx_approx": get_vertex_cover_nx_approx(graph)
+        "clique_number_approx": graph_clique_approx(graph),
+        #"clique_number": graph_clique(graph),                            # O(2^n)
+        #"diameter": graph_diameter(graph),                               # O(n(n + m))
+        #"vertex_cover_dummy_approx": get_vertex_cover_dummy_approx(graph),  # O(n^2)
+        #"cluster_coe": graph_cluster_coe(graph),                         # O(n * d^2)
+        #"transitivity": graph_transitivity(graph),                       # O(n * d^2)
+        #"modularity": graph_modularity(graph),                           # O(n log^2 n) to O(n^2)
+        "greedy_color": graph_greedy_coloring(graph),                    # O(n + m) to O(n^2)
+        "longest_path_length_monte_carlo": graph_longest_path_length(graph),  # O(k(n + m))
+        #"vertex_cover_pop_max_deg_approx": get_vertex_cover_pop_max_deg_approx(graph),  # O(n log n + m)
+        #"assortativity": graph_assortativity(graph),                     # O(n + m)
+        "largest_conn_comp": graph_largest_connected_component_size(graph),  # O(n + m)
+        #"vertex_cover_nx_approx": get_vertex_cover_nx_approx(graph),     # O(n + m)
+        #"max_degree": graph_max_degree(graph),                           # O(n)
+        #"degree": graph_average_degree(graph),                           # O(n)
+        "density": graph_density(graph)                                  # O(1)
     }
     return results

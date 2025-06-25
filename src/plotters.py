@@ -15,7 +15,7 @@ def plot_graph(graph):
     plt.show()
 
 def plot_block_size_distribution(df):
-    bucket_width = 4
+    bucket_width = 1
     block_sizes = list(df['txs'])
     
     # Determine the range of the data
@@ -137,13 +137,13 @@ def plot_data(csv_path, chain_interface: Interface):
         fig.savefig(os.path.join(FIGS_DIR, fig_name))
         plt.close(fig)
     
-    if is_callTracer:    
+    '''if is_callTracer:    
         df['ratio_txs_value_transfer'] = df['count_txs_value_transfer'] / df['txs']
         plot_call_metrics(df)
-        plot_smart_contract_percent(df)
+        plot_smart_contract_percent(df)'''
     plot_block_size_distribution(df)
     df['min_path_chromatic_ratio'] = df['longest_path_length_monte_carlo'] / df['greedy_color']
-    df['max_path_chromatic_ratio'] = df['largest_conn_comp'] / df['clique_number']
+    df['max_path_chromatic_ratio'] = df['largest_conn_comp'] / df['clique_number_approx']
     df['user_tx_ratio'] = df['user_tx_count'] / df['txs']
     df['system_tx_ratio'] = df['system_tx_count'] / df['txs']
     df['mean_sui_transfered'] = df['total_sui_transfered'] / df['txs']
@@ -159,6 +159,8 @@ def plot_data(csv_path, chain_interface: Interface):
     split_values = sorted(list(split_values))
     # Create heatmaps for each property
     for prop in properties:
+        if not pd.api.types.is_numeric_dtype(df[prop]):
+            continue
         plt.figure()
         for i_tx_group in range(len(split_values) + 1):
             if i_tx_group == 0:
@@ -210,6 +212,27 @@ def plot_data(csv_path, chain_interface: Interface):
         plt.savefig(f"figures\\{prop}.png")
         plt.close()
 
-    print("Plots have been generated and saved as PNG files.")
+    print_overleaf_table(df)
+
+def print_overleaf_table(df):
+    print(r"\begin{table}[ht]")
+    print(r"\centering")
+    print(r"\begin{tabular}{lcccc}")
+    print(r"\hline")
+    print(r"Property & Mean & Std Dev & 5th Percentile & 95th Percentile \\")
+    print(r"\hline")
+
     for prop in df.columns:
-        print(prop, df[prop].mean(), df[prop].std())    
+        if not pd.api.types.is_numeric_dtype(df[prop]):
+            continue
+        mean = df[prop].mean()
+        std = df[prop].std()
+        q05 = df[prop].quantile(0.05)
+        q95 = df[prop].quantile(0.95)
+        print(f"{prop} & {mean:.2f} & {std:.2f} & {q05:.2f} & {q95:.2f} \\\\")
+
+    print(r"\hline")
+    print(r"\end{tabular}")
+    print(r"\caption{Summary statistics for each property}")
+    print(r"\label{tab:summary_stats}")
+    print(r"\end{table}")

@@ -26,6 +26,8 @@ crypto_interface = sui_interface
 def process_trace(block_number, *trace_args):
     print(f"Processing {block_number}...")
     print(f"Getting additional metrics {block_number}...")
+    trace_args = list(trace_args)
+    # trace_args[1] = [tx for tx in trace_args[1] if crypto_interface._get_tx_type(tx) in USER_KINDS]
     metrics = crypto_interface.get_additional_metrics(block_number, trace_args)
     print(f"Creating conflict graph {block_number}...")
     G = crypto_interface.get_conflict_graph(trace_args)
@@ -47,9 +49,9 @@ def agg_load_compressed_file(dirpath, limit, k):
 
 
 def generate_data(dirpath, output_path, limit=None):
-    data_generator = agg_load_compressed_file(dirpath, limit, 300)
+    data_generator = agg_load_compressed_file(dirpath, limit, 1)
     write_header = not os.path.exists(output_path)
-    max_pending = 32
+    max_pending = 6
 
     with open(output_path, mode="a", newline="") as file:
         with ProcessPoolExecutor() as pool:
@@ -86,8 +88,8 @@ def get_files(folder_path, extension):
 
 
 def main():
-    output_path = "metrics_sui_agg100.csv"
-    dirpath = "E:\\sui"
+    output_path = "metrics_sui_big.csv"
+    dirpath = "C:\\Projects\\SuiGrapher"
     if os.path.exists(output_path):
         os.remove(output_path)
     generate_data(dirpath, output_path)
@@ -95,7 +97,7 @@ def main():
     
 
 def download_files(start: int, end: int, dirpath: str, filesize: int):
-    for begin in reversed(list(range(start, end, filesize))):
+    for begin in list(range(start, end, filesize)):
         end = begin + filesize
         filename = f"{begin}_{end}.h5"
         fetcher_multiple = fetch_serial
@@ -106,5 +108,5 @@ def download_files(start: int, end: int, dirpath: str, filesize: int):
 
 
 if __name__ == "__main__":
-    # download_files(22039000, 22040000, ".", 1000)
-    main()
+    download_files(0, 150000000, "F:\\sui_checkpoints", 1000000)
+    # main()
