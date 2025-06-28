@@ -142,20 +142,15 @@ def graph_largest_connected_component_size(G):
 
 def graph_clique_approx(graph):
     try:
-        return len(max_clique(graph))
+        return len(nx.algorithms.approximation.clique.max_clique(graph))
     except Exception as e:
         print(f"Exception in graph_clique_number: {e}")
         return float('nan')
 
+
 def graph_clique(graph):
     try:
-        # Find all maximal cliques
-        maximal_cliques = nx.find_cliques(graph)
-        
-        # Determine the size of the largest clique
-        max_clique_size = max((len(clique) for clique in maximal_cliques), default=0)
-        
-        return max_clique_size
+        return max(len(c) for c in nx.find_cliques(graph))
     except Exception as e:
         print(f"Exception in graph_clique_number: {e}")
         return float('nan')
@@ -227,16 +222,26 @@ def get_call_metrics(trace: dict) -> Dict[str, float]:
     }
     return results
 
+def graph_degeneracy(G: nx.Graph) -> int:
+    try:
+        return max(nx.core_number(G).values())
+    except Exception as e:
+        print(f"Exception in get_vertex_cover_pop_max_deg_approx: {e}")
+        return float('nan')
+
+def clique_number_heuristic(G: nx.Graph) -> int:
+    return len(nx.algorithms.approximation.clique.max_clique(G))
 
 def get_graph_metrics(graph: nx.Graph) -> Dict[str, float]:
     results = {
         "clique_number_approx": graph_clique_approx(graph),
-        #"clique_number": graph_clique(graph),                            # O(2^n)
+        # "clique_number": graph_clique(graph),                            # O(2^n)
         #"diameter": graph_diameter(graph),                               # O(n(n + m))
         #"vertex_cover_dummy_approx": get_vertex_cover_dummy_approx(graph),  # O(n^2)
         #"cluster_coe": graph_cluster_coe(graph),                         # O(n * d^2)
         #"transitivity": graph_transitivity(graph),                       # O(n * d^2)
         #"modularity": graph_modularity(graph),                           # O(n log^2 n) to O(n^2)
+        "degeneracy": graph_degeneracy(graph),
         "greedy_color": graph_greedy_coloring(graph),                    # O(n + m) to O(n^2)
         "longest_path_length_monte_carlo": graph_longest_path_length(graph),  # O(k(n + m))
         #"vertex_cover_pop_max_deg_approx": get_vertex_cover_pop_max_deg_approx(graph),  # O(n log n + m)

@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Dict, Set, List, Tuple
+import matplotlib.patches as mpatches
 
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
@@ -7,7 +8,7 @@ import numpy as np
 import pandas as pd
 from interfaces.interface import Interface
 import os
-from collections import Counter
+from collections import Counter, defaultdict
 
 USER_KINDS = {
     "ProgrammableTransaction", "TransferObject", "TransferSui",
@@ -18,6 +19,27 @@ SYSTEM_KINDS = {
     "ConsensusCommitPrologue", "ConsensusCommitPrologueV1", "ConsensusCommitPrologueV3",
     "ChangeEpoch", "Genesis", "RandomnessStateUpdate", 'EndOfEpochTransaction', 'AuthenticatorStateUpdate'
 }
+
+KIND_COLORS = {
+    "ProgrammableTransaction": "tab:blue",
+    "TransferObject": "tab:orange",
+    "TransferSui": "tab:cyan",
+    "Pay": "tab:olive",
+    "PaySui": "tab:purple",
+    "PayAllSui": "tab:brown",
+    "SplitCoin": "tab:pink",
+    "MergeCoin": "tab:gray",
+    "Publish": "gold",
+    "ConsensusCommitPrologue": "#8b0000",
+    "ConsensusCommitPrologueV1": "#d62728",
+    "ConsensusCommitPrologueV3": "#ff9896",
+    "ChangeEpoch": "navy",
+    "Genesis": "black",
+    "RandomnessStateUpdate": "tab:green",
+    "EndOfEpochTransaction": "darkorange",
+    "AuthenticatorStateUpdate": "slateblue",
+}
+
 
 class SuiInterface(Interface):
 
@@ -55,20 +77,23 @@ class SuiInterface(Interface):
 
         return best_checkpoint
 
-    def _fetch_checkpoints(self, checkpoint_id: int = 0, limit: int = 50) -> list:
+    def _fetch_checkpoints(
+        self,
+        cursor: int,
+        limit=100,
+        descending_order: bool=False
+    ) -> dict:
+        print(f"Fetching checkpoints {cursor}->{cursor+limit}...")
+        params = [str(cursor), limit, descending_order]
         payload = {
             "jsonrpc": "2.0",
             "id": 1,
             "method": "sui_getCheckpoints",
-            "params": [{
-                "cursor": str(checkpoint_id),
-                "limit": limit,
-                "descending_order": False
-            }]
+            "params": params
         }
         response = self._post_with_retry(payload)
-        return response
-    
+        return response['data']
+
     def _fetch_checkpoint(self, checkpoint_id: int) -> dict:
         payload = {
             "jsonrpc": "2.0",
@@ -78,7 +103,7 @@ class SuiInterface(Interface):
         }
         response = self._post_with_retry(payload)
         return response
-
+    
     def _fetch_txs(self, txs_ids: List[str]) -> List[dict]:
         all_results = []
         for i in range(0, len(txs_ids), 50):
@@ -151,7 +176,7 @@ class SuiInterface(Interface):
         cks_per_bucket = grouped['txs'].count()
 
         # Duration per bucket in seconds (should be equal for all, but compute for accuracy)
-        durations = [(bucket_edges[i+1] - bucket_edges[i]).total_seconds() for i in range(n_buckets)]
+        durations = [(bucket_edges[i + 1] - bucket_edges[i]).total_seconds() for i in range(n_buckets)]
 
         # Avoid division by zero
         durations = np.array(durations)
@@ -162,7 +187,7 @@ class SuiInterface(Interface):
         cks_per_sec = cks_per_bucket.values / durations
 
         # Midpoint of each bucket
-        bucket_midpoints = [bucket_edges[i] + (bucket_edges[i+1] - bucket_edges[i]) / 2 for i in range(n_buckets)]
+        bucket_midpoints = [bucket_edges[i] + (bucket_edges[i + 1] - bucket_edges[i]) / 2 for i in range(n_buckets)]
 
         # Plot
         fig, ax = plt.subplots()
@@ -202,73 +227,392 @@ class SuiInterface(Interface):
         ax.set_title("Average Operations per Second by Hour of Day")
         return fig, "ops_vs_hour_of_day.png"
     
-    def get_txs_kinds_piechart_figure(self, df: pd.DataFrame) -> Figure:
-        txs_kinds_cols = [col for col in df.columns if col.startswith('kind_') and col.endswith('_count')]
-        txs_kinds_total_counts = {col: df[col].sum() for col in txs_kinds_cols}
-        sorted_items = sorted(txs_kinds_total_counts.items(), key=lambda x: x[1], reverse=True)
-        labels, sizes = zip(*sorted_items)
-        labels = [label.replace('kind_', '').replace('_count', '') for label in labels]
-        colors = []
-        for label in labels:
-            if label in USER_KINDS:
-                colors.append(plt.cm.Reds(0.4 + 0.6 * labels.index(label) / len(labels)))
-            elif label in SYSTEM_KINDS:
-                colors.append(plt.cm.Blues(0.4 + 0.6 * labels.index(label) / len(labels)))
-            else:
-                colors.append("gray")
+    def get_inputs_kinds_piechart_figure(self, df):
+        """
+        Build a pie chart of input-kind frequencies with labels shown on the pie.
+        """
+        # 1. collect raw counts -------------------------------------------------------
+        cols = [c for c in df.columns if c.startswith("inputs_")]
+        counts = {c: df[c].sum() for c in cols}
+
+        # 2. map / merge categories ---------------------------------------------------
+        rename_map = {
+            "pure": "Pure",
+            "shared_mut": "Shared Mutable",
+            "shared_ro": "Shared Immutable",
+            "shared_immutable":"Shared Immutable",
+            "imm_or_owned": "Immutable/Owned",
+        }
+        # accumulate into four buckets
+        grouped = defaultdict(int)
+        for raw_col, cnt in counts.items():
+            raw_label = raw_col.removeprefix("inputs_").removesuffix("_count")
+            if raw_label == "receiving":  # drop the ‘receiving’ slice entirely
+                continue
+            label = rename_map.get(raw_label)
+            if label:
+                grouped[label] += cnt
+
+        # 3. order slices (optional, keeps a stable order) ----------------------------
+        order = ["Pure", "Shared Mutable", "Shared Immutable", "Immutable/Owned"]
+        labels = [lbl for lbl in order if lbl in grouped]
+        sizes = [grouped[lbl] for lbl in labels]
+
+        # 4. plot ---------------------------------------------------------------------
         fig, ax = plt.subplots()
-        ax.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=140)
-        ax.set_title("Transaction Kind Distribution (Ordered by Count)")
-        ax.axis('equal')
-        return fig, "piechart_txs_kinds.png"
-        
+        wedges, texts, autotexts = ax.pie(
+            sizes,
+            labels=labels,  # names on slices
+            autopct=lambda p: f"{p:.1f}%" if p >= 1 else "",  # % inside slices
+            startangle=90,
+            wedgeprops=dict(linewidth=0.8, edgecolor="white"),
+            textprops={"size": 11},
+        )
+        ax.axis("equal")  # keep the pie circular
+        plt.setp(autotexts, fontsize=11, weight="bold")
+        fig.tight_layout()
+        return fig, "piechart_inputs_kinds.png"
     
+    def get_txs_kinds_piechart_figure(self, df: pd.DataFrame):
+        # 1. aggregate counts ------------------------------------------------------
+        cols = [c for c in df.columns if c.startswith('kind_') and c.endswith('_count')]
+        counts = {c: df[c].sum() for c in cols}
+        total = sum(counts.values())
+
+        items = sorted(
+            ((c.replace('kind_', '').replace('_count', ''), v) for c, v in counts.items()),
+            key=lambda x: x[1],
+            reverse=True,
+        )
+
+        # 2. collapse <1 % into "other" -------------------------------------------
+        labels, sizes, other_sum = [], [], 0
+        for lbl, cnt in items:
+            if cnt / total < 0.01:
+                other_sum += cnt
+            else:
+                labels.append(lbl)
+                sizes.append(cnt)
+        if other_sum:
+            labels.append("other")
+            sizes.append(other_sum)
+            
+        colors = [
+            KIND_COLORS.get(lbl, "lightgrey")  # graceful fallback for “other” or unknown kinds
+            for lbl in labels
+        ]
+        
+        # 4. plot ------------------------------------------------------------------
+        fig, ax = plt.subplots()
+        wedges, texts, autotexts = ax.pie(
+            sizes,
+            colors=colors,
+            startangle=140,
+            autopct=lambda p: f"{p:.1f}%" if p >= 1 else "",
+        )
+        ax.axis("equal")
+        plt.setp(autotexts, fontsize=12, weight="bold")  # ← NEW LINE
+        return fig, "piechart_txs_kinds.png"
+    
+    def get_error_kinds_piechart_figure(
+    self,
+    df: pd.DataFrame,
+    min_share: float=0.01,
+    ):
+        cols = [c for c in df.columns if c.startswith("failed_")]
+        counts = {c: df[c].sum() for c in cols}
+        total = sum(counts.values()) or 1  # avoid ZeroDivisionError on empty
+
+        grouped = defaultdict(int)
+        other_sum = 0
+        for raw_col, cnt in counts.items():
+            raw_label = raw_col.removeprefix("failed_")
+            if cnt / total < min_share:
+                other_sum += cnt
+            else:
+                grouped[raw_label] += cnt
+        if other_sum:
+            grouped["other"] += other_sum
+
+        order = cols + ["other"]
+        labels = [
+            lbl.removeprefix("failed_")
+            for lbl in order
+            if lbl.removeprefix("failed_") in grouped
+        ]
+        sizes = [grouped[lbl] for lbl in labels]
+
+        fig, ax = plt.subplots()
+        wedges, texts, autotexts = ax.pie(
+            sizes,
+            labels=labels,
+            autopct=lambda p: f"{p:.1f}%" if p >= 1 else "",
+            startangle=90,
+            wedgeprops=dict(linewidth=0.8, edgecolor="white"),
+            textprops={"size": 11},
+        )
+        ax.axis("equal")
+        plt.setp(autotexts, fontsize=11, weight="bold")
+        fig.tight_layout()
+        return fig, "piechart_error_kinds.png"
+    
+    def get_writes_kinds_piechart_figure(self, df, min_share: float=0.01):
+        cols = [c for c in df.columns if c.startswith("writes_")]
+        counts = {c: df[c].sum() for c in cols}
+
+        grouped = defaultdict(int)
+        total = sum(counts.values())
+
+        # 2. collapse tiny slices and drop “receiving” --------------------------
+        other_sum = 0
+        for raw_col, cnt in counts.items():
+            raw_label = raw_col.removeprefix("writes_")
+            if raw_label == "receiving":  # skip this one entirely
+                continue
+            if cnt / total < min_share:
+                other_sum += cnt  # fold into “other”
+            else:
+                grouped[raw_label] += cnt
+
+        if other_sum:  # append the “other” slice last
+            grouped["other"] += other_sum
+
+        # 3. keep a stable ordering --------------------------------------------
+        order = cols + ["other"]  # ensures “other” is last if present
+        labels = [lbl.removeprefix("writes_") for lbl in order if lbl.removeprefix("writes_") in grouped]
+        sizes = [grouped[lbl] for lbl in labels]
+
+        # 4. plot ---------------------------------------------------------------
+        fig, ax = plt.subplots()
+        wedges, texts, autotexts = ax.pie(
+            sizes,
+            labels=labels,
+            autopct=lambda p: f"{p:.1f}%" if p >= 1 else "",
+            startangle=90,
+            wedgeprops=dict(linewidth=0.8, edgecolor="white"),
+            textprops={"size": 11},
+        )
+        ax.axis("equal")
+        plt.setp(autotexts, fontsize=11, weight="bold")
+        fig.tight_layout()
+        return fig, "piechart_writes_kinds.png"
+
     def get_additional_figures(self, df: pd.DataFrame) -> List[Tuple[str, Figure]]:
         df['datetime'] = pd.to_datetime(df['timestampMs'], unit='ms', utc=True)
 
         return [
-            self.get_txs_kinds_piechart_figure(df), 
-            self.get_ops_hour_figure(df), 
-            self.get_ops_datetime_figure(df, 16)
+            self.get_error_kinds_piechart_figure(df),
+            self.get_writes_kinds_piechart_figure(df),
+            self.get_inputs_kinds_piechart_figure(df),
+            self.get_txs_kinds_piechart_figure(df),
+            self.get_ops_hour_figure(df),
+            self.get_ops_datetime_figure(df, 16),
         ]
     
-     
-    def _calc_addrs_stats(self, txs_traces):
-        count_inputs = count_writes = count_shared_objects = 0
-        count_mutable_shared = count_writes_inputs = count_writes_shared_objects = 0
+    def _get_failed_txs(self, txs_traces: List[Dict]) -> Dict[str, int]:
+        ERROR_KINDS = [
+            "InsufficientGas",
+            "InvalidGasObject",
+            "InvariantViolation",
+            "FeatureNotYetSupported",
+            "MoveObjectTooBig",
+            "MovePackageTooBig",
+            "CircularObjectOwnership",
+            "InsufficientCoinBalance",
+            "CoinBalanceOverflow",
+            "PublishErrorNonZeroAddress",
+            "SuiMoveVerificationError",
+            "MovePrimitiveRuntimeError",
+            "MoveAbort",
+            "VMVerificationOrDeserializationError",
+            "VMInvariantViolation",
+            "FunctionNotFound",
+            "ArityMismatch",
+            "TypeArityMismatch",
+            "NonEntryFunctionInvoked",
+            "CommandArgumentError",
+            "TypeArgumentError",
+            "UnusedValueWithoutDrop",
+            "InvalidPublicFunctionReturnType",
+            "InvalidTransferObject",
+            "EffectsTooLarge",
+            "PublishUpgradeMissingDependency",
+            "PublishUpgradeDependencyDowngrade",
+            "PackageUpgradeError",
+            "WrittenObjectsTooLarge",
+            "CertificateDenied",
+            "SuiMoveVerificationTimedout",
+            "SharedObjectOperationNotAllowed",
+            "InputObjectDeleted",
+            "ExecutionCancelledDueToSharedObjectCongestion",
+            "AddressDeniedForCoin",
+            "CoinTypeGlobalPause",
+            "ExecutionCancelledDueToRandomnessUnavailable",
+            "MoveVectorElemTooBig",
+            "MoveRawValueTooBig",
+            "InvalidLinkage",
+        ]   
+        stats = Counter({f"failed_{k}": 0 for k in ERROR_KINDS})
+        stats["failed_unknown"] = 0
         for tx in txs_traces:
-            inputs = (
-                tx.get('transaction', {})
-                .get('data', {})
-                .get('transaction', {})
-                .get('inputs', [])
+            status = tx.get("effects", {}).get("status", {})
+            if status.get("status", "").lower() == "success":
+                continue
+            error_msg = status.get("error", "")
+            matched = next(
+                (k for k in ERROR_KINDS if k in error_msg),
+                None,
             )
-            inputs_addrs = {
-                inp['objectId']
+            if matched:
+                stats[f"failed_{matched}"] += 1
+            else:
+                stats["failed_unknown"] += 1
+
+        return stats
+    
+    def _get_writes(self, txs_traces: List[Dict]) -> Tuple[Counter, Dict[str, Set[str]]]:
+        SUI_SINGLETONS: Set[int] = {
+            0x5, 0x6, 0x7, 0x8, 0x9, 0x403, 0xacc,
+        }
+        
+        stats = Counter(
+            writes_owned=0,
+            writes_mutable_shared=0,
+            writes_system=0,
+            writes_gas=0,
+            writes_created=0,
+            writes_published=0,
+            writes_wrapped=0,
+            writes_unwrapped=0,
+            writes_deleted=0,
+            writes_unknown=0,
+        )
+        sets = defaultdict(set)
+
+        for tx in txs_traces:
+            changes = tx.get("objectChanges", [])
+            tx_data = tx.get("transaction", {}).get("data", {})
+            inputs = tx_data.get("transaction", {}).get("inputs", [])
+            gas_ids = {p["objectId"] for p in tx_data.get("gasData", {})
+                                                .get("payment", [])}
+
+            imm_or_owned_ids = {
+                inp["objectId"]
                 for inp in inputs
-                if inp.get('type') == 'object'
+                if inp.get("type") == "object"
+                and inp.get("objectType") == "immOrOwnedObject"
             }
-            write_addrs = {
-                change['objectId']
-                for change in tx.get('objectChanges', [])
-                if 'objectId' in change
-            }
-            shared_addrs = {
-                obj['objectId']
-                for obj in tx.get('effects', {}).get('sharedObjects', [])
-            }
-            mutable_inputs = {
-                inp['objectId']
+            mut_shared_ids = {
+                inp["objectId"]
                 for inp in inputs
-                if inp.get('type') == 'object' and inp.get('mutable', False)
+                if inp.get("type") == "object"
+                and inp.get("objectType") == "sharedObject"
+                and inp.get("mutable", False)
             }
-            count_mutable_shared += len(mutable_inputs)
-            count_inputs += len(inputs)
-            count_writes += len(write_addrs)
-            count_shared_objects += len(shared_addrs)
-            count_writes_inputs += len(inputs_addrs & write_addrs)
-            count_writes_shared_objects += len(shared_addrs & write_addrs)
-        return count_inputs, count_shared_objects, count_writes, count_writes_inputs, count_writes_shared_objects
+
+            for ch in changes:
+                oid = ch["objectId"]
+                ctype = ch["type"]
+
+                if ctype == "created":
+                    cat = "writes_created"
+                elif ctype == "published":
+                    cat = "writes_published"
+                elif ctype == "wrapped":
+                    cat = "writes_wrapped"
+                elif ctype == "unwrapped":
+                    cat = "writes_unwrapped"
+                elif ctype == "deleted":
+                    cat = "writes_deleted"
+
+                elif ctype == "mutated":
+                    if oid in gas_ids:
+                        cat = "writes_gas"
+                    elif int(oid, 16) in SUI_SINGLETONS:
+                        cat = "writes_system"
+                    elif oid in mut_shared_ids:
+                        cat = "writes_mutable_shared"
+                    elif oid in imm_or_owned_ids:
+                        cat = "writes_owned"
+                    else:
+                        cat = "writes_unknown"
+                else:
+                    cat = "writes_unknown"
+
+                stats[cat] += 1
+                sets[cat].add(oid)
+
+        return stats
+     
+    def _get_inputs_types(self, txs_traces: List[Dict]) -> Dict[str, int]:
+        stats = Counter(
+            inputs_pure=0,
+            inputs_imm_or_owned=0,
+            inputs_shared_mut=0,
+            inputs_shared_ro=0,
+            inputs_receiving=0,
+        )
+        for tx in txs_traces:
+            tx_data = tx.get("transaction", {}).get("data", {})
+            inputs = tx_data.get("transaction", {}).get("inputs", [])
+            for inp in inputs:
+                inp_type = inp.get("type") 
+                if inp_type == 'object':
+                    object_type = inp.get("objectType")
+                    if object_type == 'sharedObject':
+                        is_mutable = inp.get('mutable', False)
+                        if is_mutable:
+                            stats['inputs_shared_mut'] += 1
+                        else:
+                            stats['inputs_shared_ro'] += 1
+                    elif object_type == 'immOrOwnedObject':
+                        stats['inputs_imm_or_owned'] += 1
+                    elif object_type == 'receiving':
+                        stats['inputs_receiving'] += 1
+                    else:
+                        print(f'Unknown object type {object_type}')
+                        exit()
+                elif inp_type == 'pure':
+                    stats['inputs_pure'] += 1
+                else:
+                    print(f'Unknown input type {inp_type}')
+                    exit()
+        return stats
+     
+    '''def _get_inputs_types(self, txs_traces: List[Dict]) -> Dict[str, int]:
+        stats = Counter(
+            inputs_pure         = 0,
+            inputs_imm_or_owned = 0,
+            inputs_shared_mut   = 0,
+            inputs_shared_ro    = 0,
+            inputs_receiving    = 0,
+        )
+        for tx in txs_traces:
+            tx_data = tx.get("transaction", {}).get("data", {})
+            inputs = tx_data.get("transaction", {}).get("inputs", [])
+            for inp in inputs:
+                inp_type = inp.get("type") 
+                if inp_type == 'object':
+                    object_type = inp.get("objectType")
+                    if object_type == 'sharedObject':
+                        is_mutable = inp.get('mutable', False)
+                        if is_mutable:
+                            stats['inputs_shared_mut'] += 1
+                        else:
+                            stats['inputs_shared_ro'] += 1
+                    elif object_type == 'immOrOwnedObject':
+                        stats['inputs_imm_or_owned'] += 1
+                    elif object_type == 'receiving':
+                        stats['inputs_receiving'] += 1
+                    else:
+                        print(f'Unknown object type {object_type}')
+                        exit()
+                elif inp_type == 'pure':
+                    stats['inputs_pure'] += 1
+                else:
+                    print(f'Unknown input type {inp_type}')
+                    exit()
+        return stats'''
         
     def get_additional_metrics(self, block_number, trace) -> Dict[str, float]:
         checkpoint_trace, txs_traces = trace
@@ -286,19 +630,7 @@ class SuiInterface(Interface):
         timestamp = checkpoint_trace['timestampMs']
         epoch = checkpoint_trace['epoch']
         digest = checkpoint_trace['digest']
-        (
-            count_inputs, 
-            count_shared_objects, 
-            count_writes, 
-            count_writes_inputs, 
-            count_writes_shared_objects
-        ) = self._calc_addrs_stats(txs_traces)
         additional_metrics = {
-            "count_inputs": count_inputs, 
-            "count_shared_objects": count_shared_objects, 
-            "count_writes": count_writes, 
-            "count_writes_inputs": count_writes_inputs, 
-            "count_writes_shared_objects": count_writes_shared_objects,
             "digest": digest,
             "epoch": epoch,
             "user_tx_count": sum(txs_kind_counter.get(k, 0) for k in USER_KINDS),
@@ -310,6 +642,9 @@ class SuiInterface(Interface):
         }
         for kind in all_kinds:
             additional_metrics[f"kind_{kind}_count"] = txs_kind_counter.get(kind, 0)
+        additional_metrics.update(self._get_inputs_types(txs_traces))
+        additional_metrics.update(self._get_writes(txs_traces))
+        additional_metrics.update(self._get_failed_txs(txs_traces))
         return additional_metrics
     
     def _parse_tx(self, tx):
