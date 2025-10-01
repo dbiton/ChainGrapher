@@ -21,7 +21,7 @@ class Interface:
         return []
     
     def get_additional_metrics(self, block_number, trace) -> Dict[str, float]:
-        return {}
+        return {"block_number": block_number}
     
     def _create_conflict_graph_from_readset_writeset(self, txs: List[str], reads: Dict[str, Set[str]], writes: Dict[str, Set[str]]) -> nx.Graph:
         G = nx.Graph()
@@ -46,7 +46,7 @@ class Interface:
                         request=response.request,
                         response=response,
                     )
-                return response.json()["result"]
+                return response.json()
             except Exception as e:
                 print(f"[Attempt {attempt}] Error: {e}")
                 if attempt == max_retries:
