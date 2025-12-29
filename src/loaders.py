@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import zlib
 import h5py
@@ -34,7 +35,7 @@ def load_compressed_file(filepath: str, limit=None):
                         entries = future.result()
                         for entry in entries:
                             i_entry += 1
-                            print(f"loaded {i_entry} values from {filepath}")
+                            logging.info(f"loaded {i_entry} values from {filepath}")
                             yield entry
                             if i_entry == limit:
                                 return
@@ -42,9 +43,9 @@ def load_compressed_file(filepath: str, limit=None):
                             futures.append(pool.submit(uncompress_chunk, dset, i_chunk))
                             i_chunk += 1
         else:
-            print("No traces file found.")
+            logging.error("No traces file found.")
     except Exception as e:
-        print(f"Failed loading {filepath} due to {e}")
+        logging.error(f"Failed loading {filepath} due to {e}")
 
 def load_file(filepath: str, limit=None):
     if os.path.exists(filepath):
@@ -55,4 +56,4 @@ def load_file(filepath: str, limit=None):
                 value = json.loads(dset[i])
                 yield value  # Read one line at a time
     else:
-        print("No traces file found.")
+        logging.error("No traces file found.")

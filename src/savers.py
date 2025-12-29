@@ -1,3 +1,4 @@
+import logging
 from itertools import count
 import json
 import os
@@ -5,11 +6,12 @@ import h5py
 import zlib
 import numpy as np
 
+CHUNK_SIZE = 100
 
 def append_to_file(filename: str, generator, limit=None) -> None:
     if not os.path.exists(filename):
         raise Exception(f"{filename} doesn't exist!")
-    chunk_size = 100
+    chunk_size = CHUNK_SIZE # chuck compressed list of blocks. One file is 100 chunks
     is_done = False
     for i in count(0, chunk_size):
         i_chunk = i // chunk_size
@@ -36,7 +38,7 @@ def append_to_file(filename: str, generator, limit=None) -> None:
             dset = f['dataset']
             dset.resize((i_chunk + 1,))
             dset[i_chunk] = chunk
-        print(f"Saved {end} values in total to {filename}")
+        logging.log(f"Saved {end} values in total to {filename}")
         if is_done:
             break
 
@@ -44,11 +46,14 @@ def append_to_file(filename: str, generator, limit=None) -> None:
 def save_to_file(filename: str, generator, limit=None) -> None:
     if os.path.exists(filename):
         raise Exception(f"{filename} already exists!")
-    with h5py.File(filename, 'w') as f:
+    dirname,fname= os.path.split(filename)
+    tempname = os.path.join(dirname,"temp_"+fname)
+    with h5py.File(tempname, 'w') as f:
         f.create_dataset(
             'dataset',
             maxshape=(None,),
             shape=(0,),
             dtype=h5py.vlen_dtype(np.dtype('uint8')),
         )
-    append_to_file(filename, generator, limit)
+    append_to_file(tempname, generator, limit)
+    os.rename(tempname,filename)

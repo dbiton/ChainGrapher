@@ -1,13 +1,15 @@
 import os
+import random
 from typing import Dict, Set, List, Tuple, Any
 
 from interfaces.interface import Interface
-
+REQ_ID = int(random.uniform(1, 100000))
+DIR_PATH=None
 class SolanaInterface(Interface):
     
     def __init__(self):
         rpc_url = os.getenv("SOL_RPC_URL")
-        super().__init__(True, rpc_url)
+        super().__init__(False, rpc_url)
         # Ignore common sysvars and program IDs that every tx touches
         self._ignore_accounts: Set[str] = {
             "SysvarC1ock11111111111111111111111111111111",
@@ -29,9 +31,11 @@ class SolanaInterface(Interface):
         
 
     def fetch(self, slot: int) -> Tuple[int, dict]:
+        global REQ_ID,DIR_PATH
+        REQ_ID +=1
         payload = {
             "jsonrpc": "2.0",
-            "id": 1,
+            "id": REQ_ID,
             "method": "getBlock",
             "params": [
                 slot,
@@ -43,7 +47,7 @@ class SolanaInterface(Interface):
                 },
             ],
         }
-        resp = self._post_with_retry(payload)
+        resp = self._post_with_retry(payload,pathname=f"{DIR_PATH}/sol_{slot}.json")
         return slot, resp
 
     def _parse_tx(self, tx_entry: Dict[str, Any]) -> Tuple[Set[str], Set[str]]:

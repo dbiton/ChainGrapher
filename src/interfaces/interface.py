@@ -1,9 +1,13 @@
+import json
+import os.path
 from typing import Dict, Tuple, Set, Any, List
 import httpx
 import time
 import networkx as nx
+from httpx import TimeoutException, HTTPStatusError
 from matplotlib.figure import Figure
 import pandas as pd
+import logging
 
 class Interface:
 
@@ -35,10 +39,22 @@ class Interface:
                     G.add_edge(tx0_hash, tx1_hash)
         return G
     
-    def _post_with_retry(self, payload: Any, timeout: int = 600, max_retries: int=10, base_delay: float=2.0) -> httpx.Response:
+    def _post_with_retry(self, payload: Any,pathname:str=None, timeout: int = 600, max_retries: int=10, base_delay: float=2.0) -> httpx.Response:
+        if pathname is not None:
+            if os.path.exists(pathname):
+                try:
+                    with open(pathname, 'r') as f:
+                        j = json.load(f)
+
+                    logging.info(f'Found without fetch {pathname}')
+                    return j
+                except json.decoder.JSONDecodeError as e:
+                    logging.error(f"error in {pathname} : {e}")
+                    raise e
         delay = base_delay
         for attempt in range(1, max_retries + 1):
             try:
+                raise ""
                 response = httpx.post(self.url_rpc, json=payload, timeout=timeout)
                 if response.status_code != 200:
                     raise httpx.HTTPStatusError(
@@ -46,11 +62,36 @@ class Interface:
                         request=response.request,
                         response=response,
                     )
-                return response.json()
-            except Exception as e:
-                print(f"[Attempt {attempt}] Error: {e}")
+                # print(repr(response))
+                j = response.json()
+                if pathname is not None:
+                    with open(pathname, "w") as f:
+                        json.dump(j,f)
+                    logging.info(f'Server fetch stored locally {pathname}')
+                return j
+                # Option A: force UTF-8
+                # response.encoding = "utf-8"
+                # import json
+                # data = json.loads(response.text)
+                # return data
+            except TimeoutException as timeout_exception:
+                logging.warning(f"[Attempt {attempt}] Timeout Exception: {e}")
                 if attempt == max_retries:
-                    print("Max retries reached. Giving up.")
+                    logging.error("Max retries reached. Giving up.")
+                    raise
+                time.sleep(delay)
+                delay *= 2
+            except httpx.HTTPStatusError as e:
+                logging.warning(f"[Attempt {attempt}] HTTP Error: {e} \n\tRequest: {e.request}{e.request.content}\n\tResponse: {e.response.content}")
+                if attempt == max_retries:
+                    logging.error("Max retries reached. Giving up.")
+                    raise
+                time.sleep(delay)
+                delay *= 2
+            except Exception as e:
+                logging.warning(f"[Attempt {attempt}] Error: {e}")
+                if attempt == max_retries:
+                    logging.error("Max retries reached. Giving up.")
                     raise
                 time.sleep(delay)
                 delay *= 2
