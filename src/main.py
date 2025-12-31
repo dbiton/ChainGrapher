@@ -57,7 +57,7 @@ def agg_load_compressed_file(dirpath, limit, k):
 
 
 def generate_data(dirpath, output_path, limit=None):
-    data_generator = agg_load_compressed_file(dirpath, limit, 1)
+    data_generator = load_compressed_file(dirpath, limit)
     write_header = not os.path.exists(output_path)
     max_pending = 6
 
@@ -100,7 +100,9 @@ def main():
     dirpath = "./data/download/solana/chunks"
     if os.path.exists(output_path):
         os.remove(output_path)
-    generate_data(dirpath, output_path)
+    for path in (Seq(os.listdir(dirpath))
+        .map(lambda x: re.match(r"\d+_(\d+).h5", x)).map(lambda x: x.group(0))):
+        generate_data(path, output_path)
     plot_data(output_path, crypto_interface)
 
 
@@ -134,7 +136,7 @@ def do_download():
         Seq(os.listdir(interfaces.solana_interface.DIR_PATH))
         .map(lambda x: re.match(r"\d+_(\d+).h5", x))
         .filter(lambda x: x is not None)
-        .map(lambda x: int(x.group(1)))
+        .map(lambda x: int(x.group(0)))
         .chain([start_block])
         .reduce(max))
     download_files(start=current_start, end=start_block + count, dirpath=interfaces.solana_interface.DIR_PATH,

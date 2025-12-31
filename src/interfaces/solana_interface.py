@@ -40,7 +40,7 @@ class SolanaInterface(Interface):
             "params": [
                 slot,
                 {
-                    "encoding": "json",
+                    "encoding": "jsonParsed",
                     "transactionDetails": "full",
                     "rewards": False,
                     "maxSupportedTransactionVersion": 0
