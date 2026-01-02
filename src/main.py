@@ -63,7 +63,7 @@ def generate_data(data_path, output_path):
     write_header = not os.path.exists(output_path)
     max_pending = 6
 
-    with open(output_path, mode="a", newline="") as file:
+    with open(output_path, mode="w", newline="") as file:
         with ProcessPoolExecutor() as pool:
             futures = {pool.submit(process_trace, *data): data for data in islice(data_generator, max_pending)}
             all_submitted = len(futures) < max_pending
