@@ -112,7 +112,7 @@ def main():
                 .map(lambda x:( f"{dirpath}/chunks/{x.group(0)}", x.group(1)))):
         generate_data(datapath, f"{dirpath}/metrics/temp_{range}.csv")
         os.rename(f"{dirpath}/metrics/temp_{range}.csv",f"{dirpath}/metrics/{range}.csv")
-    plot_data(output_path, crypto_interface)
+    #plot_data(output_path, crypto_interface)
 
 
 def download_files(start: int, end: int, dirpath: str, filesize: int):
