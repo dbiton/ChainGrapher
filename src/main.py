@@ -105,10 +105,10 @@ def main():
         os.remove(output_path)
     for  datapath, range in (
             Seq(os.listdir(f"{dirpath}/chunks"))
+                .sort()
                 .map(lambda x: re.match(r"(\d+_\d+).h5", x))
                 .filter(lambda x: x is not None)
                 .filter(lambda x: not os.path.exists(f"{dirpath}/metrics/{x.group(1)}.csv"))
-                .sort()
                 .map(lambda x:( f"{dirpath}/chunks/{x.group(0)}", x.group(1)))):
         generate_data(datapath, f"{dirpath}/metrics/temp_{range}.csv")
         os.rename(f"{dirpath}/metrics/temp_{range}.csv",f"{dirpath}/metrics/{range}.csv")
