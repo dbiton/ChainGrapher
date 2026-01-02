@@ -108,6 +108,7 @@ def main():
                 .map(lambda x: re.match(r"(\d+_\d+).h5", x))
                 .filter(lambda x: x is not None)
                 .filter(lambda x: not os.path.exists(f"{dirpath}/metrics/{x.group(1)}.csv"))
+                .sort()
                 .map(lambda x:( f"{dirpath}/chunks/{x.group(0)}", x.group(1)))):
         generate_data(datapath, f"{dirpath}/metrics/temp_{range}.csv")
         os.rename(f"{dirpath}/metrics/temp_{range}.csv",f"{dirpath}/metrics/{range}.csv")
@@ -141,7 +142,7 @@ def do_download():
     # start_block = 385_280_000
     # start_block = 386_280_000
     # start_block = 388_420_000
-    count = 3_000
+    count = 10_000
     dirpath="./data/download/solana/"
     interfaces.solana_interface.DIR_PATH = f"{dirpath}/inprog"
     current_start = (
@@ -158,5 +159,5 @@ def do_download():
 if __name__ == "__main__":
     # logging.basicConfig(format='%(message)s', level=logging.BASIC_FORMAT)
     logging.basicConfig(level=logging.INFO)
-    do_download()
-    # main()
+    # do_download()
+    main()
