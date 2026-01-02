@@ -3,13 +3,14 @@ import random
 from typing import Dict, Set, List, Tuple, Any
 
 from interfaces.interface import Interface
-REQ_ID = int(random.uniform(1, 100000))
+# REQ_ID = int(random.uniform(1, 100000))
 DIR_PATH=None
+from infixpy import *
 class SolanaInterface(Interface):
     
     def __init__(self):
         rpc_url = os.getenv("SOL_RPC_URL")
-        super().__init__(False, rpc_url)
+        super().__init__(True, rpc_url)
         # Ignore common sysvars and program IDs that every tx touches
         self._ignore_accounts: Set[str] = {
             "SysvarC1ock11111111111111111111111111111111",
@@ -31,11 +32,12 @@ class SolanaInterface(Interface):
         
 
     def fetch(self, slot: int) -> Tuple[int, dict]:
-        global REQ_ID,DIR_PATH
-        REQ_ID +=1
+        global DIR_PATH
+        # global REQ_ID
+        # REQ_ID +=1
         payload = {
             "jsonrpc": "2.0",
-            "id": REQ_ID,
+            "id": self.get_timestamp(),
             "method": "getBlock",
             "params": [
                 slot,
@@ -50,6 +52,18 @@ class SolanaInterface(Interface):
         resp = self._post_with_retry(payload,pathname=f"{DIR_PATH}/sol_{slot}.json")
         return slot, resp
 
+    def remove_cached_files(self, it):
+        non_exisiting_files = (Seq(it)
+                               .map(lambda slot: f"{DIR_PATH}/sol_{slot}.json")
+                               .filter(lambda filename: (not os.path.exists(filename)))
+                               .tolist())
+        if len(non_exisiting_files) > 0:
+            print("CRITICAL ERROR: MISSING {len(non_exisiting_files)} files", flush=True)
+            print(str(non_exisiting_files), flush=True)
+            os._exit(2)
+
+        for slot in it:
+            os.remove(f"{DIR_PATH}/sol_{slot}.json")
     def _parse_tx(self, tx_entry: Dict[str, Any]) -> Tuple[Set[str], Set[str]]:
         """
         Returns (read_set, write_set) for one getBlock transaction entry.

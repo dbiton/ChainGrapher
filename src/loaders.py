@@ -33,10 +33,10 @@ def load_compressed_file(filepath: str, limit=None):
                         future = futures[0]
                         futures = futures[1:]
                         entries = future.result()
-                        for entry in entries:
+                        for (i,entry) in entries:
                             i_entry += 1
                             logging.info(f"loaded {i_entry} values from {filepath}")
-                            yield entry
+                            yield [i, entry["result"]]
                             if i_entry == limit:
                                 return
                         if i_chunk < chunk_count:

@@ -52,12 +52,14 @@ def agg_load_compressed_file(dirpath, limit, k):
         chunk = [x for x in chunk if x is not None]
         if not chunk:
             break
-        agg_txs = sum([txs for (_, _, txs) in chunk], [])
-        yield [chunk[0][0], chunk[0][1], agg_txs]
+        #agg_txs = sum([txs for (_, _, txs) in chunk], [])
+        #yield [chunk[0][0], chunk[0][1], agg_txs]
+        yield from chunk
 
 
-def generate_data(dirpath, output_path, limit=None):
-    data_generator = load_compressed_file(dirpath, limit)
+def generate_data(data_path, output_path):
+    # data_generator = agg_load_compressed_file(dirpath, limit,1)
+    data_generator = load_compressed_file(data_path)
     write_header = not os.path.exists(output_path)
     max_pending = 6
 
@@ -78,8 +80,9 @@ def generate_data(dirpath, output_path, limit=None):
                             write_header = False
                             writer.writerow(sorted_keys)
                         writer.writerow(sorted_values)
-                        logging.log(result)
-                        logging.log(f"wrote result {i} to output csv")
+                        file.flush()
+                        # logging.info()
+                        logging.info(f"wrote result {i} to output csv: {result}")
                         i += 1
                     if not all_submitted:
                         try:
@@ -97,12 +100,17 @@ def get_files(folder_path, extension):
 
 def main():
     output_path = "metrics_sui_big.csv"
-    dirpath = "./data/download/solana/chunks"
+    dirpath = "./data/download/solana/"
     if os.path.exists(output_path):
         os.remove(output_path)
-    for path in (Seq(os.listdir(dirpath))
-        .map(lambda x: re.match(r"\d+_(\d+).h5", x)).map(lambda x: x.group(0))):
-        generate_data(path, output_path)
+    for  datapath, range in (
+            Seq(os.listdir(f"{dirpath}/chunks"))
+                .map(lambda x: re.match(r"(\d+_\d+).h5", x))
+                .filter(lambda x: x is not None)
+                .filter(lambda x: not os.path.exists(f"{dirpath}/metrics/{x.group(1)}.csv"))
+                .map(lambda x:( f"{dirpath}/chunks/{x.group(0)}", x.group(1)))):
+        generate_data(datapath, f"{dirpath}/metrics/temp_{range}.csv")
+        os.rename(f"{dirpath}/metrics/temp_{range}.csv",f"{dirpath}/metrics/{range}.csv")
     plot_data(output_path, crypto_interface)
 
 
@@ -122,29 +130,33 @@ def download_files(start: int, end: int, dirpath: str, filesize: int):
 
         # run again to load local files to make compressed file
         traces_generator = fetch_serial(range(begin, end), crypto_interface.fetch)
-        save_to_file(os.path.join(dirpath, filename), traces_generator)
+        save_to_file(os.path.join(dirpath ,filename), traces_generator)
+        # remove allfiles from cache
+        crypto_interface.remove_cached_files(range(begin, end))
 
 
 def do_download():
-    logging.log("Starting download")
-    start_block = 385_280_000
+    logging.info("Starting download")
+    start_block = 390_000_000
+    # start_block = 385_280_000
     # start_block = 386_280_000
     # start_block = 388_420_000
-    count = 1_000
-    interfaces.solana_interface.DIR_PATH = "./data/download/solana/inprog"
+    count = 3_000
+    dirpath="./data/download/solana/"
+    interfaces.solana_interface.DIR_PATH = f"{dirpath}/inprog"
     current_start = (
-        Seq(os.listdir(interfaces.solana_interface.DIR_PATH))
+        Seq(os.listdir(f"{dirpath}/chunks/"))
         .map(lambda x: re.match(r"\d+_(\d+).h5", x))
         .filter(lambda x: x is not None)
-        .map(lambda x: int(x.group(0)))
+        .map(lambda x: int(x.group(1)))
         .chain([start_block])
         .reduce(max))
-    download_files(start=current_start, end=start_block + count, dirpath=interfaces.solana_interface.DIR_PATH,
+    download_files(start=current_start, end=start_block + count, dirpath=f"{dirpath}/chunks",
                    filesize=1_000)
 
 
 if __name__ == "__main__":
     # logging.basicConfig(format='%(message)s', level=logging.BASIC_FORMAT)
     logging.basicConfig(level=logging.INFO)
-    # do_download()
-    main()
+    do_download()
+    # main()

@@ -9,12 +9,16 @@ from matplotlib.figure import Figure
 import pandas as pd
 import logging
 
+import datetime, urllib.parse
 class Interface:
 
     def __init__(self, fetch_parallel: bool, url_rpc: str):
         self.fetch_parallel = fetch_parallel
         self.url_rpc = url_rpc
-    
+        self.url_domain = urllib.parse.urlparse(url_rpc).netloc
+
+    def get_timestamp(self):
+        return datetime.datetime.now().astimezone().strftime(f"%Y-%m-%d_%H:%M:%S.%f/{self.url_domain}")
     def fetch(self, block_number: int):
         pass
     
@@ -50,11 +54,11 @@ class Interface:
                     return j
                 except json.decoder.JSONDecodeError as e:
                     logging.error(f"error in {pathname} : {e}")
-                    raise e
+                    raise Exception(f"{pathname}:: error in {e}")
         delay = base_delay
+        logging.info(f'Doing HTTP for {pathname}')
         for attempt in range(1, max_retries + 1):
             try:
-                raise ""
                 response = httpx.post(self.url_rpc, json=payload, timeout=timeout)
                 if response.status_code != 200:
                     raise httpx.HTTPStatusError(
@@ -65,8 +69,9 @@ class Interface:
                 # print(repr(response))
                 j = response.json()
                 if pathname is not None:
-                    with open(pathname, "w") as f:
+                    with open(pathname+"_temp", "w") as f:
                         json.dump(j,f)
+                    os.rename(pathname+"_temp",pathname)
                     logging.info(f'Server fetch stored locally {pathname}')
                 return j
                 # Option A: force UTF-8
@@ -95,3 +100,4 @@ class Interface:
                     raise
                 time.sleep(delay)
                 delay *= 2
+

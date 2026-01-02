@@ -38,7 +38,7 @@ def append_to_file(filename: str, generator, limit=None) -> None:
             dset = f['dataset']
             dset.resize((i_chunk + 1,))
             dset[i_chunk] = chunk
-        logging.log(f"Saved {end} values in total to {filename}")
+        logging.info(f"Saved {end} values in total to {filename}")
         if is_done:
             break
 
