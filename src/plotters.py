@@ -1,3 +1,4 @@
+import glob
 import os
 from matplotlib import pyplot as plt
 import numpy as np
@@ -6,7 +7,7 @@ import networkx as nx
 
 from interfaces.interface import Interface
 
-FIGS_DIR = 'figures'
+FIGS_DIR = './data/download/solana/figures'
 
 def plot_graph(graph):
     plt.figure(figsize=(8, 6))
@@ -40,7 +41,7 @@ def plot_block_size_distribution(df):
     plt.tight_layout()
     
     # Save the plot
-    plt.savefig(f"figures\\block_size_dist.png")
+    plt.savefig(f"{FIGS_DIR}/block_size_dist.png")
     plt.close()
 
 def plot_smart_contract_percent(_df):
@@ -78,7 +79,7 @@ def plot_smart_contract_percent(_df):
     plt.tight_layout()
     
     # Save the plot
-    plt.savefig(f"figures\\value_transfer_txs_ratio.png")
+    plt.savefig(f"{FIGS_DIR}/value_transfer_txs_ratio.png")
     plt.close()
 
 def plot_call_metrics(_df):    
@@ -119,18 +120,24 @@ def plot_call_metrics(_df):
     plt.tight_layout()
     
     # Save the plot
-    plt.savefig(f"figures\\call_metrics.png")
+    plt.savefig(f"{FIGS_DIR}/call_metrics.png")
     plt.close()
 
+def plot_data_dir(csv_dir, chain_interface: Interface):
+    all_files = glob.glob(os.path.join(csv_dir, "*.csv"))
+    df = pd.concat((pd.read_csv(f) for f in all_files), ignore_index=True)
+    plot_data_df(df, chain_interface)
 def plot_data(csv_path, chain_interface: Interface):
+    df = pd.read_csv(csv_path)
+    df = df.drop_duplicates(subset='block_number', keep='first')
+    plot_data_df(df, chain_interface)
+def plot_data_df(df, chain_interface: Interface):
     markers = ["o", "s", "^", "v", "D", "*"]
     
     lines_count = 4
     bins_count = 16
     quant_fill = 0.05
 
-    df = pd.read_csv(csv_path)
-    df = df.drop_duplicates(subset='block_number', keep='first')
 
     additional_figs = chain_interface.get_additional_figures(df)
     for (fig, fig_name) in additional_figs:
@@ -143,10 +150,10 @@ def plot_data(csv_path, chain_interface: Interface):
         plot_smart_contract_percent(df)'''
     plot_block_size_distribution(df)
     df['min_path_chromatic_ratio'] = df['longest_path_length_monte_carlo'] / df['greedy_color']
-    df['max_path_chromatic_ratio'] = df['largest_conn_comp'] / df['clique_number_approx']
-    df['user_tx_ratio'] = df['user_tx_count'] / df['txs']
-    df['system_tx_ratio'] = df['system_tx_count'] / df['txs']
-    df['mean_sui_transfered'] = df['total_sui_transfered'] / df['txs']
+    df['max_path_chromatic_ratio'] = df['largest_conn_comp'] / df['clique_number']
+    # df['user_tx_ratio'] = df['user_tx_count'] / df['txs']
+    # df['system_tx_ratio'] = df['system_tx_count'] / df['txs']
+    # df['mean_sui_transfered'] = df['total_sui_transfered'] / df['txs']
     
     # Ensure the data has X, Y, and other columns
     if "density" not in df.columns or "txs" not in df.columns:
@@ -209,7 +216,7 @@ def plot_data(csv_path, chain_interface: Interface):
         plt.tight_layout()
 
         # Save the plot
-        plt.savefig(f"figures\\{prop}.png")
+        plt.savefig(f"{FIGS_DIR}/{prop}.png")
         plt.close()
 
     print_overleaf_table(df)

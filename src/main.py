@@ -20,7 +20,7 @@ from interfaces.eth_call_interface import EthCallInterface
 from interfaces.eth_prestate_interface import EthPerstateInterface
 from interfaces.sui_interface import SuiInterface, USER_KINDS
 from graph_metrics import get_graph_metrics
-from plotters import plot_data, plot_graph
+from plotters import plot_data, plot_graph, plot_data_dir
 from savers import save_to_file, CHUNK_SIZE
 from loaders import load_compressed_file
 from fetchers import fetch_parallel, fetch_serial
@@ -118,20 +118,24 @@ def get_files(folder_path, extension):
 
 @entrypoint(name="metrics")
 def do_metrics():
-    output_path = "metrics_sui_big.csv"
+    # output_path = "metrics_sui_big.csv"
     dirpath = "./data/download/solana/"
-    if os.path.exists(output_path):
-        os.remove(output_path)
+    # if os.path.exists(output_path):
+    #     os.remove(output_path)
     for  datapath, range in (
             Seq(os.listdir(f"{dirpath}/chunks"))
                 .sort()
-                .map(lambda x: re.match(r"(\d+_\d+).h5", x))
+                .map(lambda x: re.match(r"((\d+)_(\d+)).h5", x))
                 .filter(lambda x: x is not None)
+                # .filter(lambda x: int(x.group(3))==390003000)
                 .filter(lambda x: not os.path.exists(f"{dirpath}/metrics/{x.group(1)}.csv"))
                 .map(lambda x:( f"{dirpath}/chunks/{x.group(0)}", x.group(1)))):
         generate_data(datapath, f"{dirpath}/metrics/temp_{range}.csv")
         os.rename(f"{dirpath}/metrics/temp_{range}.csv",f"{dirpath}/metrics/{range}.csv")
-    #plot_data(output_path, crypto_interface)
+
+@entrypoint
+def do_plots():
+    plot_data_dir("./data/download/solana/metrics", crypto_interface)
 
 
 def download_files(start: int, end: int, dirpath: str, filesize: int):
