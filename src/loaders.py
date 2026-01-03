@@ -46,6 +46,7 @@ def load_compressed_file(filepath: str, limit=None):
             logging.error("No traces file found.")
     except Exception as e:
         logging.error(f"Failed loading {filepath} due to {e}")
+        raise e
 
 def load_file(filepath: str, limit=None):
     if os.path.exists(filepath):
