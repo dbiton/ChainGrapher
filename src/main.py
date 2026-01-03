@@ -1,6 +1,7 @@
 import csv
 import logging
 import re
+import sys
 from itertools import islice
 import os
 
@@ -30,6 +31,24 @@ eth_interface = EthPerstateInterface()
 solana_interface = SolanaInterface()
 crypto_interface = solana_interface
 
+
+main_func_registry={}
+
+
+def register_entrypoint(func, name):
+    global main_func_registry
+    key = func.__name__ if name is None else name
+    main_func_registry[key] = func
+    return func
+def entrypoint(_func=None, name=None):
+    if _func is not None and callable(_func):
+        return register_entrypoint(_func,name)
+    else:
+        return lambda _func: register_entrypoint(_func, name)
+
+def do_main_func(key):
+    global main_func_registry
+    main_func_registry[key]()
 
 def process_trace(block_number, *trace_args):
     logging.info(f"Processing {block_number}...")
@@ -97,8 +116,8 @@ def generate_data(data_path, output_path):
 def get_files(folder_path, extension):
     return [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith(extension)]
 
-
-def main():
+@entrypoint(name="metrics")
+def do_metrics():
     output_path = "metrics_sui_big.csv"
     dirpath = "./data/download/solana/"
     if os.path.exists(output_path):
@@ -135,14 +154,16 @@ def download_files(start: int, end: int, dirpath: str, filesize: int):
         # remove allfiles from cache
         crypto_interface.remove_cached_files(range(begin, end))
 
-
+@entrypoint
 def do_download():
     logging.info("Starting download")
-    start_block = 390_000_000
+    # start_block = 390_000_000
+    start_block = int(os.getenv("START_BLOCK"))
     # start_block = 385_280_000
     # start_block = 386_280_000
     # start_block = 388_420_000
-    count = 10_000
+    # count = 100_000
+    count = int(os.getenv("BLOCK_COUNT"))
     dirpath="./data/download/solana/"
     interfaces.solana_interface.DIR_PATH = f"{dirpath}/inprog"
     current_start = (
@@ -160,4 +181,5 @@ if __name__ == "__main__":
     # logging.basicConfig(format='%(message)s', level=logging.BASIC_FORMAT)
     logging.basicConfig(level=logging.INFO)
     # do_download()
-    main()
+    # main()
+    do_main_func(sys.argv[1])
