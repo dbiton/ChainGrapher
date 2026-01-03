@@ -17,7 +17,8 @@ def uncompress_chunk(dset, i):
 
 def load_compressed_file(filepath: str, limit=None):
     try:
-        os.remove(filepath+"_errors.txt")
+        if os.path.exists(filepath+"_errors.txt"):
+            os.remove(filepath+"_errors.txt")
         if os.path.exists(filepath):
             with h5py.File(filepath, 'r') as f:
                 dset = f['dataset']
