@@ -17,6 +17,7 @@ def uncompress_chunk(dset, i):
 
 def load_compressed_file(filepath: str, limit=None):
     try:
+        os.remove(filepath+"_errors.txt")
         if os.path.exists(filepath):
             with h5py.File(filepath, 'r') as f:
                 dset = f['dataset']
@@ -36,6 +37,10 @@ def load_compressed_file(filepath: str, limit=None):
                         for (i,entry) in entries:
                             i_entry += 1
                             logging.info(f"loaded {i_entry} values from {filepath}")
+                            if "error" in entry:
+                                with open(filepath+"_errors.txt", 'a') as f:
+                                    f.write(f"{i_entry}\t{entry['error']['message']}\n")
+                                continue
                             yield [i, entry["result"]]
                             if i_entry == limit:
                                 return
