@@ -91,7 +91,10 @@ def generate_data(data_path, output_path):
     max_pending = 6
 
     with open(output_path, mode="w", newline="") as file:
-        with ProcessPoolExecutor() as pool:
+        max_workers= int(os.getenv("MAX_METRIC_WORKERS",-1))
+        if max_workers == -1:
+            max_workers = None
+        with ProcessPoolExecutor(max_workers=max_workers) as pool:
             futures = {pool.submit(process_trace, *data): data for data in islice(data_generator, max_pending)}
             all_submitted = len(futures) < max_pending
             writer = csv.writer(file)
