@@ -148,13 +148,13 @@ def do_metrics():
 @entrypoint
 def do_plots():
     all_files = (Seq(glob.glob(os.path.join("./data/download/solana/metrics", "*.csv")))
-                 .map(lambda x: (x, re.match(r".+\\(\d+)_(\d+).csv", x)))
+                 .map(lambda x: (x, re.match(r".+\\((\d+)_(\d+)).csv", x)))
                  .filter(lambda x: x[1] is not None)
                  .filter(lambda x: (MIN_BLOCK_EXCLUDE is None) or (int(x[1].group(2)) >= MIN_BLOCK_EXCLUDE))
                  .filter(lambda x: (MAX_BLOCK_EXCLUDE is None) or (int(x[1].group(3)) <= MAX_BLOCK_EXCLUDE))
                  .filter(lambda x: (x.group(2) not in IGNORE_LIST) and (x.group(3) not in IGNORE_LIST))
+                 .sortby(lambda x:x[1].group(1))
                  .map(lambda x: x[0])
-                 .sort()
                  .tolist()
                  )
 
@@ -196,7 +196,7 @@ def do_download():
     interfaces.solana_interface.DIR_PATH = f"{dirpath}/inprog"
     current_start = (
         Seq(os.listdir(f"{dirpath}/chunks/"))
-        .map(lambda x: re.match(r"\d+_(\d+).h5", x))
+        .map(lambda x: re.match(r"((\d+)_(\d+)).h5", x))
         .filter(lambda x: x is not None)
         .filter(lambda x: (MIN_BLOCK_EXCLUDE is None) or (int(x.group(2)) >= MIN_BLOCK_EXCLUDE))
         .filter(lambda x: (MAX_BLOCK_EXCLUDE is None) or (int(x.group(3)) <= MAX_BLOCK_EXCLUDE))
