@@ -125,8 +125,12 @@ def plot_call_metrics(_df):
 
 def plot_data_dir(csv_dir, chain_interface: Interface):
     all_files = glob.glob(os.path.join(csv_dir, "*.csv"))
+    plot_data_filelist(all_files, chain_interface)
+
+def plot_data_filelist(all_files, chain_interface: Interface):
     df = pd.concat((pd.read_csv(f) for f in all_files), ignore_index=True)
     plot_data_df(df, chain_interface)
+
 def plot_data(csv_path, chain_interface: Interface):
     df = pd.read_csv(csv_path)
     df = df.drop_duplicates(subset='block_number', keep='first')

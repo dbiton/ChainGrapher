@@ -1,4 +1,5 @@
 import csv
+import glob
 import logging
 import re
 import sys
@@ -12,7 +13,8 @@ import itertools
 from concurrent.futures._base import as_completed
 from infixpy import *
 
-load_dotenv()
+load_dotenv(override=False) # Prioritize environment first
+
 import interfaces.solana_interface
 from interfaces.iota_interface import IotaInterface
 from interfaces.solana_interface import SolanaInterface
@@ -20,7 +22,7 @@ from interfaces.eth_call_interface import EthCallInterface
 from interfaces.eth_prestate_interface import EthPerstateInterface
 from interfaces.sui_interface import SuiInterface, USER_KINDS
 from graph_metrics import get_graph_metrics
-from plotters import plot_data, plot_graph, plot_data_dir
+from plotters import plot_data, plot_graph, plot_data_dir, plot_data_filelist
 from savers import save_to_file, CHUNK_SIZE
 from loaders import load_compressed_file
 from fetchers import fetch_parallel, fetch_serial
@@ -34,6 +36,8 @@ crypto_interface = solana_interface
 
 main_func_registry={}
 
+MAX_BLOCK_EXCLUDE,MIN_BLOCK_EXCLUDE=None,None
+IGNORE_LIST=[]
 
 def register_entrypoint(func, name):
     global main_func_registry
@@ -124,18 +128,31 @@ def do_metrics():
     #     os.remove(output_path)
     for  datapath, range in (
             Seq(os.listdir(f"{dirpath}/chunks"))
-                .sort()
                 .map(lambda x: re.match(r"((\d+)_(\d+)).h5", x))
                 .filter(lambda x: x is not None)
-                .filter(lambda x: int(x.group(3))==390003000)
+                .filter(lambda x: (MIN_BLOCK_EXCLUDE is None) or (int(x.group(2)) >= MIN_BLOCK_EXCLUDE))
+                .filter(lambda x: (MAX_BLOCK_EXCLUDE is None) or (int(x.group(3)) <= MAX_BLOCK_EXCLUDE))
+                    .filter(lambda x: (x.group(2) not in IGNORE_LIST) and (x.group(3) not in IGNORE_LIST))
                 .filter(lambda x: not os.path.exists(f"{dirpath}/metrics/{x.group(1)}.csv"))
-                .map(lambda x:( f"{dirpath}/chunks/{x.group(0)}", x.group(1)))):
+                .map(lambda x:( f"{dirpath}/chunks/{x.group(0)}", x.group(1)))
+                .sortby(lambda x:x[1])):
         generate_data(datapath, f"{dirpath}/metrics/temp_{range}.csv")
         os.rename(f"{dirpath}/metrics/temp_{range}.csv",f"{dirpath}/metrics/{range}.csv")
 
 @entrypoint
 def do_plots():
-    plot_data_dir("./data/download/solana/metrics", crypto_interface)
+    all_files = (Seq(glob.glob(os.path.join("./data/download/solana/metrics", "*.csv")))
+                 .map(lambda x: (x,re.match(r".+\\(\d+)_(\d+).csv", x)))
+                 .filter(lambda x: x[1] is not None)
+                 .filter(lambda x: (MIN_BLOCK_EXCLUDE is None) or (int(x[1].group(2)) >= MIN_BLOCK_EXCLUDE))
+                 .filter(lambda x: (MAX_BLOCK_EXCLUDE is None) or (int(x[1].group(3)) <= MAX_BLOCK_EXCLUDE))
+                 .filter(lambda x: (x.group(2) not in IGNORE_LIST) and (x.group(3) not in IGNORE_LIST))
+                 .map(lambda x: x[0])
+                 .sort()
+                 .tolist()
+                 )
+
+    plot_data_filelist(all_files, crypto_interface)
 
 
 def download_files(start: int, end: int, dirpath: str, filesize: int):
@@ -144,7 +161,7 @@ def download_files(start: int, end: int, dirpath: str, filesize: int):
     assert (count % filesize == 0)
     for begin in list(range(start, end, filesize)):
         end = begin + filesize
-        filename = f"{begin}_{end}.h5"
+        filename = f"{begin}_{end-1}.h5"
         fetcher_multiple = fetch_serial
         if crypto_interface.fetch_parallel:
             fetcher_multiple = fetch_parallel
@@ -174,6 +191,9 @@ def do_download():
         Seq(os.listdir(f"{dirpath}/chunks/"))
         .map(lambda x: re.match(r"\d+_(\d+).h5", x))
         .filter(lambda x: x is not None)
+        .filter(lambda x: (MIN_BLOCK_EXCLUDE is None) or (int(x.group(2)) >= MIN_BLOCK_EXCLUDE))
+        .filter(lambda x: (MAX_BLOCK_EXCLUDE is None) or (int(x.group(3)) <= MAX_BLOCK_EXCLUDE))
+        .filter(lambda x: (x.group(2) not in IGNORE_LIST) and (x.group(3) not in IGNORE_LIST))
         .map(lambda x: int(x.group(1)))
         .chain([start_block])
         .reduce(max))
@@ -186,4 +206,11 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     # do_download()
     # main()
+    if os.getenv("MAX_BLOCK_EXCLUDE") is not None:
+        MAX_BLOCK_EXCLUDE = int(os.getenv("MAX_BLOCK_EXCLUDE"))
+    if os.getenv("MIN_BLOCK_EXCLUDE") is not None:
+        MIN_BLOCK_EXCLUDE = int(os.getenv("MIN_BLOCK_EXCLUDE"))
+    if os.getenv("IGNORE") is not None:
+        IGNORE_LIST = {int(x.strip()) for x in os.getenv("IGNORE").split(",")}
+
     do_main_func(sys.argv[1])
