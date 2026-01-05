@@ -13,7 +13,7 @@ import itertools
 from concurrent.futures._base import as_completed
 from infixpy import *
 
-load_dotenv(override=False) # Prioritize environment first
+load_dotenv(override=False)  # Prioritize environment first
 
 import interfaces.solana_interface
 from interfaces.iota_interface import IotaInterface
@@ -33,26 +33,30 @@ eth_interface = EthPerstateInterface()
 solana_interface = SolanaInterface()
 crypto_interface = solana_interface
 
+main_func_registry = {}
 
-main_func_registry={}
+MAX_BLOCK_EXCLUDE, MIN_BLOCK_EXCLUDE = None, None
+IGNORE_LIST = []
 
-MAX_BLOCK_EXCLUDE,MIN_BLOCK_EXCLUDE=None,None
-IGNORE_LIST=[]
 
 def register_entrypoint(func, name):
     global main_func_registry
     key = func.__name__ if name is None else name
     main_func_registry[key] = func
     return func
+
+
 def entrypoint(_func=None, name=None):
     if _func is not None and callable(_func):
-        return register_entrypoint(_func,name)
+        return register_entrypoint(_func, name)
     else:
         return lambda _func: register_entrypoint(_func, name)
+
 
 def do_main_func(key):
     global main_func_registry
     main_func_registry[key]()
+
 
 def process_trace(block_number, *trace_args):
     logging.info(f"Processing {block_number}...")
@@ -75,8 +79,8 @@ def agg_load_compressed_file(dirpath, limit, k):
         chunk = [x for x in chunk if x is not None]
         if not chunk:
             break
-        #agg_txs = sum([txs for (_, _, txs) in chunk], [])
-        #yield [chunk[0][0], chunk[0][1], agg_txs]
+        # agg_txs = sum([txs for (_, _, txs) in chunk], [])
+        # yield [chunk[0][0], chunk[0][1], agg_txs]
         yield from chunk
 
 
@@ -120,29 +124,31 @@ def generate_data(data_path, output_path):
 def get_files(folder_path, extension):
     return [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith(extension)]
 
+
 @entrypoint(name="metrics")
 def do_metrics():
     # output_path = "metrics_sui_big.csv"
     dirpath = "./data/download/solana/"
     # if os.path.exists(output_path):
     #     os.remove(output_path)
-    for  datapath, range in (
+    for datapath, range in (
             Seq(os.listdir(f"{dirpath}/chunks"))
-                .map(lambda x: re.match(r"((\d+)_(\d+)).h5", x))
-                .filter(lambda x: x is not None)
-                .filter(lambda x: (MIN_BLOCK_EXCLUDE is None) or (int(x.group(2)) >= MIN_BLOCK_EXCLUDE))
-                .filter(lambda x: (MAX_BLOCK_EXCLUDE is None) or (int(x.group(3)) <= MAX_BLOCK_EXCLUDE))
+                    .map(lambda x: re.match(r"((\d+)_(\d+)).h5", x))
+                    .filter(lambda x: x is not None)
+                    .filter(lambda x: (MIN_BLOCK_EXCLUDE is None) or (int(x.group(2)) >= MIN_BLOCK_EXCLUDE))
+                    .filter(lambda x: (MAX_BLOCK_EXCLUDE is None) or (int(x.group(3)) <= MAX_BLOCK_EXCLUDE))
                     .filter(lambda x: (x.group(2) not in IGNORE_LIST) and (x.group(3) not in IGNORE_LIST))
-                .filter(lambda x: not os.path.exists(f"{dirpath}/metrics/{x.group(1)}.csv"))
-                .map(lambda x:( f"{dirpath}/chunks/{x.group(0)}", x.group(1)))
-                .sortby(lambda x:x[1])):
+                    .filter(lambda x: not os.path.exists(f"{dirpath}/metrics/{x.group(1)}.csv"))
+                    .map(lambda x: (f"{dirpath}/chunks/{x.group(0)}", x.group(1)))
+                    .sortby(lambda x: x[1])):
         generate_data(datapath, f"{dirpath}/metrics/temp_{range}.csv")
-        os.rename(f"{dirpath}/metrics/temp_{range}.csv",f"{dirpath}/metrics/{range}.csv")
+        os.rename(f"{dirpath}/metrics/temp_{range}.csv", f"{dirpath}/metrics/{range}.csv")
+
 
 @entrypoint
 def do_plots():
     all_files = (Seq(glob.glob(os.path.join("./data/download/solana/metrics", "*.csv")))
-                 .map(lambda x: (x,re.match(r".+\\(\d+)_(\d+).csv", x)))
+                 .map(lambda x: (x, re.match(r".+\\(\d+)_(\d+).csv", x)))
                  .filter(lambda x: x[1] is not None)
                  .filter(lambda x: (MIN_BLOCK_EXCLUDE is None) or (int(x[1].group(2)) >= MIN_BLOCK_EXCLUDE))
                  .filter(lambda x: (MAX_BLOCK_EXCLUDE is None) or (int(x[1].group(3)) <= MAX_BLOCK_EXCLUDE))
@@ -161,19 +167,20 @@ def download_files(start: int, end: int, dirpath: str, filesize: int):
     assert (count % filesize == 0)
     for begin in list(range(start, end, filesize)):
         end = begin + filesize
-        filename = f"{begin}_{end-1}.h5"
+        filename = f"{begin}_{end - 1}.h5"
         fetcher_multiple = fetch_serial
         if crypto_interface.fetch_parallel:
             fetcher_multiple = fetch_parallel
-        #run once to save files locally before making compressed file
+        # run once to save files locally before making compressed file
         for _ in fetcher_multiple(range(begin, end), crypto_interface.fetch):
             pass
 
         # run again to load local files to make compressed file
         traces_generator = fetch_serial(range(begin, end), crypto_interface.fetch)
-        save_to_file(os.path.join(dirpath ,filename), traces_generator)
+        save_to_file(os.path.join(dirpath, filename), traces_generator)
         # remove allfiles from cache
         crypto_interface.remove_cached_files(range(begin, end))
+
 
 @entrypoint
 def do_download():
@@ -185,7 +192,7 @@ def do_download():
     # start_block = 388_420_000
     # count = 100_000
     count = int(os.getenv("BLOCK_COUNT"))
-    dirpath="./data/download/solana/"
+    dirpath = "./data/download/solana/"
     interfaces.solana_interface.DIR_PATH = f"{dirpath}/inprog"
     current_start = (
         Seq(os.listdir(f"{dirpath}/chunks/"))
@@ -211,6 +218,6 @@ if __name__ == "__main__":
     if os.getenv("MIN_BLOCK_EXCLUDE") is not None:
         MIN_BLOCK_EXCLUDE = int(os.getenv("MIN_BLOCK_EXCLUDE"))
     if os.getenv("IGNORE") is not None:
-        IGNORE_LIST = {int(x.strip()) for x in os.getenv("IGNORE").split(",")}
+        IGNORE_LIST = {int(y) for x in os.getenv("IGNORE").split(",") if (y := x.strip()) != ""}
 
     do_main_func(sys.argv[1])
