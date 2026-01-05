@@ -201,7 +201,7 @@ def do_download():
         .filter(lambda x: (MIN_BLOCK_EXCLUDE is None) or (int(x.group(2)) >= MIN_BLOCK_EXCLUDE))
         .filter(lambda x: (MAX_BLOCK_EXCLUDE is None) or (int(x.group(3)) <= MAX_BLOCK_EXCLUDE))
         .filter(lambda x: (x.group(2) not in IGNORE_LIST) and (x.group(3) not in IGNORE_LIST))
-        .map(lambda x: int(x.group(1)))
+        .map(lambda x: int(x.group(3))+1)
         .chain([start_block])
         .reduce(max))
     download_files(start=current_start, end=start_block + count, dirpath=f"{dirpath}/chunks",
