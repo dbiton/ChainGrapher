@@ -1,3 +1,4 @@
+import glob
 import json
 import logging
 import os
@@ -66,3 +67,12 @@ def load_file(filepath: str, limit=None):
                 yield value  # Read one line at a time
     else:
         logging.error("No traces file found.")
+
+
+def get_single_block(dir="./data/download/solana/chunks", no=0):
+    filestart = ((int(os.getenv("START_BLOCK")) - no) // 1000) * 1000 + int(os.getenv("START_BLOCK"))
+    i_chunk = ((int(os.getenv("START_BLOCK")) - no) % 1000)
+    filepath = glob.glob(dir+ f"/{filestart}_*.h5")[0]
+    with h5py.File(filepath, 'r') as f:
+        dset = f['dataset']
+        return uncompress_chunk(dset, i_chunk)[i_chunk]

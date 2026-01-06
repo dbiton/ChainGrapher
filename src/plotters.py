@@ -43,6 +43,34 @@ def plot_block_size_distribution(df):
     # Save the plot
     plt.savefig(f"{FIGS_DIR}/block_size_dist.png")
     plt.close()
+def plot_density_distribution(df):
+    bucket_width = 1
+    block_sizes = list(df['density'])
+
+    # Determine the range of the data
+    min_val = min(block_sizes)
+    max_val = max(block_sizes)
+
+    # Construct bin edges: start at min_val and go up to max_val in steps of 20
+    # Adding a final 20 to max_val ensures we include the top edge
+    bins = np.arange(min_val, max_val + bucket_width, bucket_width)
+
+    weights = np.ones(len(block_sizes)) / len(block_sizes)
+
+    # Plot the histogram
+    plt.hist(block_sizes, bins=bins,weights=weights, edgecolor='black')
+
+    # Add labels and title for clarity
+    plt.xlabel('Density')
+    plt.ylabel('Frequency')
+    plt.xscale('log', base=2)
+    # plt.grid()
+    # plt.legend()
+    plt.tight_layout()
+
+    # Save the plot
+    plt.savefig(f"{FIGS_DIR}/density_dist.png")
+    plt.close()
 
 def plot_smart_contract_percent(_df):
     plt.figure()
@@ -148,11 +176,12 @@ def plot_data_df(df, chain_interface: Interface):
         fig.savefig(os.path.join(FIGS_DIR, fig_name))
         plt.close(fig)
     
-    '''if is_callTracer:    
-        df['ratio_txs_value_transfer'] = df['count_txs_value_transfer'] / df['txs']
-        plot_call_metrics(df)
-        plot_smart_contract_percent(df)'''
+    # '''if is_callTracer:
+    #     df['ratio_txs_value_transfer'] = df['count_txs_value_transfer'] / df['txs']
+    #     plot_call_metrics(df)
+    #     plot_smart_contract_percent(df)'''
     plot_block_size_distribution(df)
+    plot_density_distribution(df)
     df['min_path_chromatic_ratio'] = df['longest_path_length_monte_carlo'] / df['greedy_color']
     df['max_path_chromatic_ratio'] = df['largest_conn_comp'] / df['clique_number']
     # df['user_tx_ratio'] = df['user_tx_count'] / df['txs']

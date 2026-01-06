@@ -13,6 +13,8 @@ import itertools
 from concurrent.futures._base import as_completed
 from infixpy import *
 
+import loaders
+
 load_dotenv(override=False)  # Prioritize environment first
 
 import interfaces.solana_interface
@@ -70,6 +72,14 @@ def process_trace(block_number, *trace_args):
     metrics.update(get_graph_metrics(G))
     return metrics
 
+@entrypoint(name="graph")
+def plot_conflict_graph():
+    block_number = 390000000#int(sys.argv[2])
+    b = loaders.get_single_block(no=block_number)
+    G = crypto_interface.get_conflict_graph([b[1]['result']])
+    plot_graph(G)
+    print(G)
+
 
 def agg_load_compressed_file(dirpath, limit, k):
     generators = [load_compressed_file(filepath) for filepath in get_files(dirpath, ".h5")]
@@ -88,7 +98,7 @@ def generate_data(data_path, output_path):
     # data_generator = agg_load_compressed_file(dirpath, limit,1)
     data_generator = load_compressed_file(data_path)
     write_header = not os.path.exists(output_path)
-    max_pending = 6
+    max_pending = int(os.getenv("MAX_PENDING",6))
 
     with open(output_path, mode="w", newline="") as file:
         max_workers= int(os.getenv("MAX_METRIC_WORKERS",-1))
@@ -140,7 +150,7 @@ def do_metrics():
                     .filter(lambda x: x is not None)
                     .filter(lambda x: (MIN_BLOCK_EXCLUDE is None) or (int(x.group(2)) >= MIN_BLOCK_EXCLUDE))
                     .filter(lambda x: (MAX_BLOCK_EXCLUDE is None) or (int(x.group(3)) <= MAX_BLOCK_EXCLUDE))
-                    .filter(lambda x: (x.group(2) not in IGNORE_LIST) and (x.group(3) not in IGNORE_LIST))
+                    .filter(lambda x: (int(x.group(2)) not in IGNORE_LIST) and (int(x.group(3)) not in IGNORE_LIST))
                     .filter(lambda x: not os.path.exists(f"{dirpath}/metrics/{x.group(1)}.csv"))
                     .map(lambda x: (f"{dirpath}/chunks/{x.group(0)}", x.group(1)))
                     .sortby(lambda x: x[1])):
@@ -151,11 +161,11 @@ def do_metrics():
 @entrypoint
 def do_plots():
     all_files = (Seq(glob.glob(os.path.join("./data/download/solana/metrics", "*.csv")))
-                 .map(lambda x: (x, re.match(r".+\\((\d+)_(\d+)).csv", x)))
+                 .map(lambda x: (x, re.match(r".+/((\d+)_(\d+)).csv", x)))
                  .filter(lambda x: x[1] is not None)
                  .filter(lambda x: (MIN_BLOCK_EXCLUDE is None) or (int(x[1].group(2)) >= MIN_BLOCK_EXCLUDE))
                  .filter(lambda x: (MAX_BLOCK_EXCLUDE is None) or (int(x[1].group(3)) <= MAX_BLOCK_EXCLUDE))
-                 .filter(lambda x: (x.group(2) not in IGNORE_LIST) and (x.group(3) not in IGNORE_LIST))
+                 .filter(lambda x: (int(x[1].group(2)) not in IGNORE_LIST) and (int(x[1].group(3)) not in IGNORE_LIST))
                  .sortby(lambda x:x[1].group(1))
                  .map(lambda x: x[0])
                  .tolist()
@@ -203,7 +213,7 @@ def do_download():
         .filter(lambda x: x is not None)
         .filter(lambda x: (MIN_BLOCK_EXCLUDE is None) or (int(x.group(2)) >= MIN_BLOCK_EXCLUDE))
         .filter(lambda x: (MAX_BLOCK_EXCLUDE is None) or (int(x.group(3)) <= MAX_BLOCK_EXCLUDE))
-        .filter(lambda x: (x.group(2) not in IGNORE_LIST) and (x.group(3) not in IGNORE_LIST))
+        .filter(lambda x: (int(x.group(2)) not in IGNORE_LIST) and (int(x.group(3)) not in IGNORE_LIST))
         .map(lambda x: int(x.group(3))+1)
         .chain([start_block])
         .reduce(max))
