@@ -26,7 +26,7 @@ def load_compressed_file(filepath: str, limit=None):
                 dset = f['dataset']
                 i_entry = 0
                 chunk_count = dset.shape[0]
-                max_pending = int(os.getenv("MAX_PENDING",6))
+                max_pending = 2
                 with ThreadPoolExecutor(max_pending) as pool:
                     futures = [
                         pool.submit(uncompress_chunk, dset, i_chunk) 
