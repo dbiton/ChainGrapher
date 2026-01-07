@@ -18,12 +18,16 @@ def killProcessOnExecption(func):
 def fetch_parallel(it: Iterable[int], fetcher: Callable[[int], Any]):
     fetcher = killProcessOnExecption(fetcher)
     max_workers = int(os.getenv("MAX_FETCH_WORKERS", 25))
-    with ProcessPoolExecutor(max_workers=25) as executor:
-        futures = [executor.submit(fetcher, i) for i in it]
-        for future in futures:
-            result = future.result()
-            if result:
-                yield result
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        try:
+            futures = (executor.submit(fetcher, i) for i in it)
+            for future in futures:
+                result = future.result()
+                if result:
+                    yield result
+        except KeyboardInterrupt as e:
+            executor.shutdown(wait=True, cancel_futures=True)
+            yield from (f.result() for f in futures if f.cancelled() == False)
 
 def fetch_serial(it: Iterable[int], fetcher: Callable[[int], Any]):
     for i in it:
