@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+from concurrent.futures import ProcessPoolExecutor
 from typing import Callable, Any, Iterable
 from concurrent.futures.thread import ThreadPoolExecutor
 
@@ -16,7 +17,8 @@ def killProcessOnExecption(func):
 
 def fetch_parallel(it: Iterable[int], fetcher: Callable[[int], Any]):
     fetcher = killProcessOnExecption(fetcher)
-    with ThreadPoolExecutor(max_workers=50) as executor:
+    max_workers = int(os.getenv("MAX_FETCH_WORKERS", 25))
+    with ProcessPoolExecutor(max_workers=25) as executor:
         futures = [executor.submit(fetcher, i) for i in it]
         for future in futures:
             result = future.result()
