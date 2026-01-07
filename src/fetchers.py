@@ -16,7 +16,7 @@ def killProcessOnExecption(func):
     return func_wrapper
 
 def fetch_parallel(it: Iterable[int], fetcher: Callable[[int], Any]):
-    fetcher = killProcessOnExecption(fetcher)
+    # fetcher = killProcessOnExecption(fetcher)
     max_workers = int(os.getenv("MAX_FETCH_WORKERS", 25))
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
         try:
