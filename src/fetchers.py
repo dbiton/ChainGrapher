@@ -46,6 +46,7 @@ def fetch_parallel_process(it: Iterable[int], fetcher: Callable[[int], Any]):
             yield from (f.result() for f in futures if f.cancelled() == False)
 
 def fetch_parallel_2(it: Iterable[int], fetcher: Callable[[int], Any]):
+    it = iter(it)
     max_workers = int(os.getenv("MAX_FETCH_WORKERS", 25))
     max_pending = int(os.getenv("MAX_PENDING",6))
     with ProcessPoolExecutor(max_workers=max_workers) as pool:
