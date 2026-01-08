@@ -10,7 +10,7 @@ import infixpy
 from dotenv import load_dotenv
 from concurrent.futures import ProcessPoolExecutor
 import itertools
-from concurrent.futures._base import as_completed
+import concurrent.futures
 from infixpy import *
 
 import loaders
@@ -27,7 +27,7 @@ from graph_metrics import get_graph_metrics
 from plotters import plot_data, plot_graph, plot_data_dir, plot_data_filelist
 from savers import save_to_file, CHUNK_SIZE
 from loaders import load_compressed_file
-from fetchers import fetch_parallel, fetch_serial
+import fetchers
 
 sui_interface = SuiInterface()
 iota_interface = IotaInterface()
@@ -72,9 +72,10 @@ def process_trace(block_number, *trace_args):
     metrics.update(get_graph_metrics(G))
     return metrics
 
+
 @entrypoint(name="graph")
 def plot_conflict_graph():
-    block_number = 390000000#int(sys.argv[2])
+    block_number = 390000000  # int(sys.argv[2])
     b = loaders.get_single_block(no=block_number)
     G = crypto_interface.get_conflict_graph([b[1]['result']])
     plot_graph(G)
@@ -98,10 +99,10 @@ def generate_data(data_path, output_path):
     # data_generator = agg_load_compressed_file(dirpath, limit,1)
     data_generator = load_compressed_file(data_path)
     write_header = not os.path.exists(output_path)
-    max_pending = int(os.getenv("MAX_PENDING",6))
+    max_pending = int(os.getenv("MAX_PENDING", 6))
 
     with open(output_path, mode="w", newline="") as file:
-        max_workers= int(os.getenv("MAX_METRIC_WORKERS",-1))
+        max_workers = int(os.getenv("MAX_METRIC_WORKERS", -1))
         if max_workers == -1:
             max_workers = None
         with ProcessPoolExecutor(max_workers=max_workers) as pool:
@@ -110,7 +111,7 @@ def generate_data(data_path, output_path):
             writer = csv.writer(file)
             i = 0
             while futures:
-                for future in as_completed(futures):
+                for future in concurrent.futures.as_completed(futures):
                     result = future.result()
                     del futures[future]
                     if result is not None:
@@ -166,7 +167,7 @@ def do_plots():
                  .filter(lambda x: (MIN_BLOCK_EXCLUDE is None) or (int(x[1].group(2)) >= MIN_BLOCK_EXCLUDE))
                  .filter(lambda x: (MAX_BLOCK_EXCLUDE is None) or (int(x[1].group(3)) <= MAX_BLOCK_EXCLUDE))
                  .filter(lambda x: (int(x[1].group(2)) not in IGNORE_LIST) and (int(x[1].group(3)) not in IGNORE_LIST))
-                 .sortby(lambda x:x[1].group(1))
+                 .sortby(lambda x: x[1].group(1))
                  .map(lambda x: x[0])
                  .tolist()
                  )
@@ -177,19 +178,18 @@ def do_plots():
 def download_files(start: int, end: int, dirpath: str, filesize: int):
     assert (filesize % CHUNK_SIZE == 0)
     count = end - start
+    assert (start < end)
     assert (count % filesize == 0)
     for begin in list(range(start, end, filesize)):
         end = begin + filesize
         filename = f"{begin}_{end - 1}.h5"
-        fetcher_multiple = fetch_serial
-        if crypto_interface.fetch_parallel:
-            fetcher_multiple = fetch_parallel
+        fetcher_multiple = fetchers.fetch_parallel_2 if crypto_interface.fetch_parallel else fetchers.fetch_serial
         # run once to save files locally before making compressed file
         for _ in fetcher_multiple(range(begin, end), crypto_interface.fetch):
             pass
 
         # run again to load local files to make compressed file
-        traces_generator = fetch_serial(range(begin, end), crypto_interface.fetch)
+        traces_generator = fetchers.fetch_serial(range(begin, end), crypto_interface.fetch)
         save_to_file(os.path.join(dirpath, filename), traces_generator)
         # remove allfiles from cache
         crypto_interface.remove_cached_files(range(begin, end))
@@ -214,7 +214,7 @@ def do_download():
         .filter(lambda x: (MIN_BLOCK_EXCLUDE is None) or (int(x.group(2)) >= MIN_BLOCK_EXCLUDE))
         .filter(lambda x: (MAX_BLOCK_EXCLUDE is None) or (int(x.group(3)) <= MAX_BLOCK_EXCLUDE))
         .filter(lambda x: (int(x.group(2)) not in IGNORE_LIST) and (int(x.group(3)) not in IGNORE_LIST))
-        .map(lambda x: int(x.group(3))+1)
+        .map(lambda x: int(x.group(3)) + 1)
         .chain([start_block])
         .reduce(max))
     download_files(start=current_start, end=start_block + count, dirpath=f"{dirpath}/chunks",
