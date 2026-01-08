@@ -49,7 +49,7 @@ def fetch_parallel_2(it: Iterable[int], fetcher: Callable[[int], Any]):
     max_workers = int(os.getenv("MAX_FETCH_WORKERS", 25))
     max_pending = int(os.getenv("MAX_PENDING",6))
     with ProcessPoolExecutor(max_workers=max_workers) as pool:
-        futures = {pool.submit(fetcher, *data): data for data in itertools.islice(it, max_pending)}
+        futures = {pool.submit(fetcher, data): data for data in itertools.islice(it, max_pending)}
         all_submitted = len(futures) < max_pending
         while futures:
             for future in concurrent.futures.as_completed(futures):
@@ -60,7 +60,7 @@ def fetch_parallel_2(it: Iterable[int], fetcher: Callable[[int], Any]):
                 if not all_submitted:
                     try:
                         next_data = next(it)
-                        new_future = pool.submit(fetcher, *next_data)
+                        new_future = pool.submit(fetcher, next_data)
                         futures[new_future] = next_data
                     except StopIteration:
                         all_submitted = True
