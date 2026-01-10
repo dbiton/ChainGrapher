@@ -61,6 +61,14 @@ class Interface:
             try:
                 response = httpx.post(self.url_rpc, json=payload, timeout=timeout)
                 if response.status_code != 200:
+                    try:
+                        j = response.json()
+                    except json.JSONDecodeError:
+                        j =None
+                    if 'error' in j and j['error']['code'] == 429:
+                        print(e, flush=True)
+                        # os.remove(str(e).split("::")[0])
+                        os._exit(429)
                     raise httpx.HTTPStatusError(
                         f"{response.status_code} {response.reason_phrase}",
                         request=response.request,
