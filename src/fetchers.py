@@ -46,10 +46,10 @@ def fetch_parallel_process(it: Iterable[int], fetcher: Callable[[int], Any]):
             yield from (f.result() for f in futures if f.cancelled() == False)
 
 
-def killProcessOnExecption_2(func, args):
+def killProcessOnExecption_2(func, *args):
     try:
         return func(*args)
-    except KeyboardInterrupt as e:
+    except KeyboardInterrupt:
         pass
 
 
@@ -59,7 +59,7 @@ def fetch_parallel_2(it: Iterable[int], fetcher: Callable[[int], Any]):
     max_workers = int(os.getenv("MAX_FETCH_WORKERS", 25))
     max_pending = int(os.getenv("MAX_PENDING",6))
     with ProcessPoolExecutor(max_workers=max_workers) as pool:
-        futures = {pool.submit(killProcessOnExecption_2, fetcher, data): data for data in itertools.islice(it, max_pending)}
+        futures = {pool.submit(killProcessOnExecption_2, (fetcher, data)): data for data in itertools.islice(it, max_pending)}
         all_submitted = len(futures) < max_pending
         while futures:
             for future in concurrent.futures.as_completed(futures):
