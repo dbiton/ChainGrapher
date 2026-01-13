@@ -233,7 +233,7 @@ def generate_additional_data(data_path, input_path, output_path, newcols):
         if max_workers == -1:
             max_workers = None
         max_workers = 1
-        from concurrent.futures import ThreadPoolExecutor
+        from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
         # ThreadPoolExecutor = DummyExecutor
         with ThreadPoolExecutor(max_workers=max_workers) as pool:
             futures = {pool.submit(process_newdata, newcols, *data): data for data in
