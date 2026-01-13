@@ -196,7 +196,10 @@ def generate_csv_data_pairs(data_path, input_path):
     for data_i in data_generator:
         if df_i['block_number'] == data_i[1]['parentSlot'] + 1:
             yield *data_i, df_i
-            df_i = dict(next(df)[1])
+            try:
+                df_i = dict(next(df)[1])
+            except StopIteration:
+                return
 # import concurrent.futures, threading
 # class DummyExecutor(concurrent.futures.Executor):
 #
