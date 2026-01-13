@@ -8,6 +8,7 @@ from httpx import TimeoutException, HTTPStatusError
 from matplotlib.figure import Figure
 import pandas as pd
 import logging
+logger = logging.getLogger(__name__)
 
 import datetime, urllib.parse
 class Interface:
@@ -42,6 +43,14 @@ class Interface:
                 if tx0_hash != tx1_hash and not tx0_writes.isdisjoint(tx1_writes):
                     G.add_edge(tx0_hash, tx1_hash)
         return G
+    def create_conflict_graph_from_writewrite_only(self, txs: List[str], writes: Dict[str, Set[str]]) -> nx.Graph:
+        G = nx.Graph()
+        G.add_nodes_from(txs)
+        for tx0_hash, tx0_writes in writes.items():
+            for tx1_hash, tx1_writes in writes.items():
+                if tx0_hash != tx1_hash and not tx0_writes.isdisjoint(tx1_writes):
+                    G.add_edge(tx0_hash, tx1_hash)
+        return G
     
     def _post_with_retry(self, payload: Any,pathname:str=None, timeout: int = 600, max_retries: int=10, base_delay: float=2.0) -> httpx.Response:
         if pathname is not None:
@@ -50,13 +59,13 @@ class Interface:
                     with open(pathname, 'r') as f:
                         j = json.load(f)
 
-                    logging.info(f'Found without fetch {pathname}')
+                    logger.info(f'Found without fetch {pathname}')
                     return j
                 except json.decoder.JSONDecodeError as e:
-                    logging.error(f"error in {pathname} : {e}")
+                    logger.error(f"error in {pathname} : {e}")
                     raise Exception(f"{pathname}:: error in {e}")
         delay = base_delay
-        logging.info(f'Doing HTTP for {pathname}')
+        logger.info(f'Doing HTTP for {pathname}')
         for attempt in range(1, max_retries + 1):
             try:
                 response = httpx.post(self.url_rpc, json=payload, timeout=timeout)
@@ -80,7 +89,7 @@ class Interface:
                     with open(pathname+"_temp", "w") as f:
                         json.dump(j,f)
                     os.rename(pathname+"_temp",pathname)
-                    logging.info(f'Server fetch stored locally {pathname}')
+                    logger.info(f'Server fetch stored locally {pathname}')
                 return j
                 # Option A: force UTF-8
                 # response.encoding = "utf-8"
@@ -88,23 +97,23 @@ class Interface:
                 # data = json.loads(response.text)
                 # return data
             except TimeoutException as timeout_exception:
-                logging.warning(f"[Attempt {attempt}] Timeout Exception: {e}")
+                logger.warning(f"[Attempt {attempt}] Timeout Exception: {e}")
                 if attempt == max_retries:
-                    logging.error("Max retries reached. Giving up.")
+                    logger.error("Max retries reached. Giving up.")
                     raise
                 time.sleep(delay)
                 delay *= 2
             except httpx.HTTPStatusError as e:
-                logging.warning(f"[Attempt {attempt}] HTTP Error: {e} \n\tRequest: {e.request}{e.request.content}\n\tResponse: {e.response.content}")
+                logger.warning(f"[Attempt {attempt}] HTTP Error: {e} \n\tRequest: {e.request}{e.request.content}\n\tResponse: {e.response.content}")
                 if attempt == max_retries:
-                    logging.error("Max retries reached. Giving up.")
+                    logger.error("Max retries reached. Giving up.")
                     raise
                 time.sleep(delay)
                 delay *= 2
             except Exception as e:
-                logging.warning(f"[Attempt {attempt}] Error: {e}")
+                logger.warning(f"[Attempt {attempt}] Error: {e}")
                 if attempt == max_retries:
-                    logging.error("Max retries reached. Giving up.")
+                    logger.error("Max retries reached. Giving up.")
                     raise
                 time.sleep(delay)
                 delay *= 2

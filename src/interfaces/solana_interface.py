@@ -94,7 +94,8 @@ class SolanaInterface(Interface):
             # In jsonParsed, loaded addresses are already represented in accountKeys with source="lookupTable"
             write_addrs = {resolved_keys[i] for i in writable_idx} - ignore
             read_addrs = set(resolved_keys) - write_addrs - ignore
-            return read_addrs, write_addrs
+            program_addrs = set(inst["programId"] for inst in tx_entry['transaction']['message']['instructions'])
+            return read_addrs, write_addrs, program_addrs
 
         # Branch 2: RAW JSON (legacy or v0) – accountKeys is list[str]
         # Build resolved key list and writable set of indices
@@ -136,27 +137,34 @@ class SolanaInterface(Interface):
 
         write_addrs = {resolved_keys[i] for i in writable_idx} - ignore
         read_addrs = set(resolved_keys) - write_addrs - ignore
-        return read_addrs, write_addrs
+        return read_addrs, write_addrs, None
 
     def get_conflict_graph(self, data: dict) -> Any:
+        reads, txs, writes = self.get_rw_sets(data)
+
+        return self._create_conflict_graph_from_readset_writeset(txs, reads, writes)
+
+    def get_conflict_graph_rwsets(self, data: dict) -> Any:
+        reads, txs, writes = self.get_rw_sets(data)
+
+        return self._create_conflict_graph_from_readset_writeset(txs, reads, writes), txs, reads, writes
+
+    def get_rw_sets(self, data):
         block = data[0]
         tx_entries: List[dict] = block.get("transactions", [])
-
         writes: Dict[str, Set[str]] = {}
         reads: Dict[str, Set[str]] = {}
         txs: List[str] = []
-
         for tx_entry in tx_entries:
             sigs = tx_entry.get("transaction", {}).get("signatures", [])
             if not sigs:
                 continue
             tx_id = sigs[0]
-            read_addrs, write_addrs = self._parse_tx(tx_entry)
+            read_addrs, write_addrs,_ = self._parse_tx(tx_entry)
 
             if read_addrs:
                 reads[tx_id] = read_addrs
             if write_addrs:
                 writes[tx_id] = write_addrs
             txs.append(tx_id)
-
-        return self._create_conflict_graph_from_readset_writeset(txs, reads, writes)
+        return reads, txs, writes

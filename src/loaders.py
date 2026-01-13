@@ -1,6 +1,8 @@
 import glob
 import json
 import logging
+logger = logging.getLogger(__name__)
+
 import os
 import sys
 import zlib
@@ -39,7 +41,7 @@ def load_compressed_file(filepath: str, limit=None):
                         entries = future.result()
                         for (i,entry) in entries:
                             i_entry += 1
-                            logging.info(f"loaded {i_entry} values from {filepath}")
+                            logger.info(f"loaded {i_entry} values from {filepath}")
                             if "error" in entry:
                                 with open(filepath+"_errors.txt", 'a') as f:
                                     f.write(f"{i_entry}\t{entry['error']['message']}\n")
@@ -51,9 +53,9 @@ def load_compressed_file(filepath: str, limit=None):
                             futures.append(pool.submit(uncompress_chunk, dset, i_chunk))
                             i_chunk += 1
         else:
-            logging.error("No traces file found.")
+            logger.error("No traces file found.")
     except Exception as e:
-        logging.error(f"Failed loading {filepath} due to {e}")
+        logger.error(f"Failed loading {filepath} due to {e}")
         print(repr(e))
         os._exit(1)
 
@@ -66,7 +68,7 @@ def load_file(filepath: str, limit=None):
                 value = json.loads(dset[i])
                 yield value  # Read one line at a time
     else:
-        logging.error("No traces file found.")
+        logger.error("No traces file found.")
 
 
 def get_single_block(dir="./data/download/solana/chunks", no=0):

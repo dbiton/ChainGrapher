@@ -1,5 +1,7 @@
 import glob
 import os
+
+import matplotlib.ticker
 from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
@@ -9,13 +11,21 @@ from interfaces.interface import Interface
 
 FIGS_DIR = './data/download/solana/figures'
 
+figlatex=r'''\begin{figure}
+\centerline{\includegraphics[width=\columnwidth]{figures/%s}}
+\caption{%s}
+\label{fig:%s}
+\end{figure}'''
+def maketuple(s:str):
+    s1=s.replace('_','-')
+    return (f"{s}.png", s1,s1)
 def plot_graph(graph):
     plt.figure(figsize=(8, 6))
     pos = nx.kamada_kawai_layout(graph)  # positions for all nodes
     nx.draw(graph, pos, arrows=True)#, with_labels=True)
     plt.show()
 
-def plot_block_size_distribution(df):
+def plot_block_size_distribution(df,print=print):
     bucket_width = 1
     block_sizes = list(df['txs'])
     
@@ -43,8 +53,9 @@ def plot_block_size_distribution(df):
     # Save the plot
     plt.savefig(f"{FIGS_DIR}/block_size_dist.png")
     plt.close()
-def plot_density_distribution(df):
-    bucket_width = 1
+    print(figlatex%maketuple("block_size_dist"))
+def plot_density_distribution(df,print=print):
+    bucket_width = 0.001
     block_sizes = list(df['density'])
 
     # Determine the range of the data
@@ -54,23 +65,30 @@ def plot_density_distribution(df):
     # Construct bin edges: start at min_val and go up to max_val in steps of 20
     # Adding a final 20 to max_val ensures we include the top edge
     bins = np.arange(min_val, max_val + bucket_width, bucket_width)
-
+    plt.figure(figsize=(20,4))
     weights = np.ones(len(block_sizes)) / len(block_sizes)
 
     # Plot the histogram
-    plt.hist(block_sizes, bins=bins,weights=weights, edgecolor='black')
+    counts, edges, bars = plt.hist(block_sizes, bins=bins, edgecolor='black')
 
+    plt.bar_label(bars)
     # Add labels and title for clarity
     plt.xlabel('Density')
     plt.ylabel('Frequency')
-    plt.xscale('log', base=2)
+    plt.xscale('log', base=10)
+    plt.yscale('log', base=10)
+    ax=plt.gca()
+    ax.xaxis.set_major_formatter(matplotlib.ticker.ScalarFormatter())
+    ax.yaxis.set_major_formatter(matplotlib.ticker.ScalarFormatter())
     # plt.grid()
     # plt.legend()
+    # plt.autoscale(enable=True, axis='x', tight=None)
     plt.tight_layout()
 
     # Save the plot
     plt.savefig(f"{FIGS_DIR}/density_dist.png")
     plt.close()
+    print(figlatex % maketuple("density_dist"))
 
 def plot_smart_contract_percent(_df):
     plt.figure()
@@ -157,13 +175,14 @@ def plot_data_dir(csv_dir, chain_interface: Interface):
 
 def plot_data_filelist(all_files, chain_interface: Interface):
     df = pd.concat((pd.read_csv(f) for f in all_files), ignore_index=True)
-    plot_data_df(df, chain_interface)
+    with open(f"{FIGS_DIR}/figs.tex", 'a') as f:
+       plot_data_df(df, chain_interface,print=lambda x:print(x,file=f))
 
 def plot_data(csv_path, chain_interface: Interface):
     df = pd.read_csv(csv_path)
     df = df.drop_duplicates(subset='block_number', keep='first')
     plot_data_df(df, chain_interface)
-def plot_data_df(df, chain_interface: Interface):
+def plot_data_df(df, chain_interface: Interface,print=print):
     markers = ["o", "s", "^", "v", "D", "*"]
     
     lines_count = 4
@@ -180,8 +199,8 @@ def plot_data_df(df, chain_interface: Interface):
     #     df['ratio_txs_value_transfer'] = df['count_txs_value_transfer'] / df['txs']
     #     plot_call_metrics(df)
     #     plot_smart_contract_percent(df)'''
-    plot_block_size_distribution(df)
-    plot_density_distribution(df)
+    plot_block_size_distribution(df,print=print)
+    plot_density_distribution(df,print=print)
     df['min_path_chromatic_ratio'] = df['longest_path_length_monte_carlo'] / df['greedy_color']
     df['max_path_chromatic_ratio'] = df['largest_conn_comp'] / df['clique_number']
     # df['user_tx_ratio'] = df['user_tx_count'] / df['txs']
@@ -228,7 +247,7 @@ def plot_data_df(df, chain_interface: Interface):
             df_group['density_bin'] = pd.cut(density, bins=bins, include_lowest=True)
             
             # Group by the bins and compute mean and SEM
-            grouped = df_group.groupby('density_bin')
+            grouped = df_group.groupby('density_bin', observed=False)
             mean_conflict = grouped["density"].mean()
             mean_prop = grouped[prop].mean()
             
@@ -251,8 +270,9 @@ def plot_data_df(df, chain_interface: Interface):
         # Save the plot
         plt.savefig(f"{FIGS_DIR}/{prop}.png")
         plt.close()
+        print(figlatex % maketuple(prop))
 
-    print_overleaf_table(df)
+    # print_overleaf_table(df)
 
 def print_overleaf_table(df):
     print(r"\begin{table}[ht]")

@@ -1,6 +1,12 @@
 import csv
 import glob
 import logging
+
+import networkx as nx
+import pandas as pd
+
+logger = logging.getLogger(__name__)
+
 import re
 import sys
 from itertools import islice
@@ -61,14 +67,14 @@ def do_main_func(key):
 
 
 def process_trace(block_number, *trace_args):
-    logging.info(f"Processing {block_number}...")
-    logging.info(f"Getting additional metrics {block_number}...")
+    logger.info(f"Processing {block_number}...")
+    logger.info(f"Getting additional metrics {block_number}...")
     trace_args = list(trace_args)
     # trace_args[1] = [tx for tx in trace_args[1] if crypto_interface._get_tx_type(tx) in USER_KINDS]
     metrics = crypto_interface.get_additional_metrics(block_number, trace_args)
-    logging.info(f"Creating conflict graph {block_number}...")
+    logger.info(f"Creating conflict graph {block_number}...")
     G = crypto_interface.get_conflict_graph(trace_args)
-    logging.info(f"Getting graph metrics {block_number}...")
+    logger.info(f"Getting graph metrics {block_number}...")
     metrics.update(get_graph_metrics(G))
     return metrics
 
@@ -98,7 +104,7 @@ def agg_load_compressed_file(dirpath, limit, k):
 def generate_data(data_path, output_path):
     # data_generator = agg_load_compressed_file(dirpath, limit,1)
     data_generator = load_compressed_file(data_path)
-    write_header = not os.path.exists(output_path)
+    write_header = True  # not os.path.exists(output_path)
     max_pending = int(os.getenv("MAX_PENDING", 6))
 
     with open(output_path, mode="w", newline="") as file:
@@ -122,8 +128,8 @@ def generate_data(data_path, output_path):
                             writer.writerow(sorted_keys)
                         writer.writerow(sorted_values)
                         file.flush()
-                        # logging.info()
-                        logging.info(f"wrote result {i} to output csv: {result}")
+                        # logger.info()
+                        logger.info(f"wrote result {i} to output csv: {result}")
                         i += 1
                     if not all_submitted:
                         try:
@@ -135,8 +141,156 @@ def generate_data(data_path, output_path):
                     break  # Exit early to allow re-entering as_completed with updated futures
 
 
+def process_newdata(newcols, block_number, trace_args, df):
+    logger.info(f"Processing {block_number}...")
+    logger.info(f"Getting additional metrics {block_number}...")
+    # trace_args = list(trace_args)
+    # trace_args[1] = [tx for tx in trace_args[1] if crypto_interface._get_tx_type(tx) in USER_KINDS]
+    logger.info(f"Creating conflict graph {block_number}...")
+    G, txs, reads, writes = crypto_interface.get_conflict_graph_rwsets([trace_args])
+    G: nx.Graph = G
+    block = trace_args
+
+    new_metrics = {}
+    logger.info(f"Getting graph metrics {block_number}...")
+
+    if 'edge-count' in newcols:
+        new_metrics['edge_count'] = len(G)
+
+    if 'no-ww-conflics' in newcols:
+        G_W = crypto_interface.create_conflict_graph_from_writewrite_only(txs, writes)
+        new_metrics['wwconflicts_count'] = len(G_W.edges)
+        new_metrics['wwconflicts_exclusive'] = len(nx.difference(G_W, G).edges)
+
+    field_stuff = {
+        'fee': (lambda tx: tx['meta']['fee'],),
+        'computeUnitsConsumed': (lambda tx: tx['meta']['computeUnitsConsumed'],),
+        'costUnits': (lambda tx: tx['meta']['costUnits'],),
+        'failed': (lambda tx: 0 if tx['meta']['err'] is None else 1,)
+    }
+    # "sumof::fee"
+    # "sumof::computeUnitsConsumed"
+    # "sumof::costUnits"
+    # "sumof::failed"
+    def sumof(field: str):
+        nonlocal new_metrics
+        func, = field_stuff[field]
+        new_metrics["sumof_" + field] = sum(func(tx) for tx in block['transactions'])
+
+    for field in Seq(newcols).map(lambda x: re.match(r"sumof::(\S+)", x)).filter(lambda x: x is not None).map(
+            lambda x: x.group(1)):
+        sumof(field)
+
+    # crypto_interface.get_additional_metrics(block_number, trace_args)
+    # metrics.update(get_graph_metrics(G))
+    return df, new_metrics
+
+
+def generate_csv_data_pairs(data_path, input_path):
+    data_generator = load_compressed_file(data_path)
+    dfs = pd.read_csv(input_path, dtype_backend='numpy_nullable').sort_values(by='block_number')
+    df = iter(dfs.iterrows())
+
+    # _, cols = next(df)
+    df_i = dict(next(df)[1])
+    for data_i in data_generator:
+        if df_i['block_number'] == data_i[1]['parentSlot'] + 1:
+            yield *data_i, df_i
+            df_i = dict(next(df)[1])
+# import concurrent.futures, threading
+# class DummyExecutor(concurrent.futures.Executor):
+#
+#     def __init__(self,*args, **kwargs):
+#         self._shutdown = False
+#         self._shutdownLock = threading.Lock()
+#
+#     def submit(self, fn, *args, **kwargs):
+#         with self._shutdownLock:
+#             if self._shutdown:
+#                 raise RuntimeError('cannot schedule new futures after shutdown')
+#
+#             f = concurrent.futures.Future()
+#             try:
+#                 result = fn(*args, **kwargs)
+#             except BaseException as e:
+#                 f.set_exception(e)
+#             else:
+#                 f.set_result(result)
+#
+#             return f
+#
+#     def shutdown(self, wait=True):
+#         with self._shutdownLock:
+#             self._shutdown = True
+def generate_additional_data(data_path, input_path, output_path, newcols):
+    datapair_generator = generate_csv_data_pairs(data_path, input_path)
+    write_header = True
+
+    max_pending = int(os.getenv("MAX_PENDING", 6))
+
+    with open(output_path, mode="w", newline="") as file:
+        max_workers = int(os.getenv("MAX_METRIC_WORKERS", -1))
+        if max_workers == -1:
+            max_workers = None
+        max_workers = 1
+        from concurrent.futures import ThreadPoolExecutor
+        # ThreadPoolExecutor = DummyExecutor
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            futures = {pool.submit(process_newdata, newcols, *data): data for data in
+                       islice(datapair_generator, max_pending)}
+            all_submitted = len(futures) < max_pending
+            writer = csv.writer(file)
+            i = 0
+            while futures:
+                for future in concurrent.futures.as_completed(futures):
+                    existingvalues, result = future.result()
+                    del futures[future]
+                    if result is not None:
+                        result.update(existingvalues)
+                        sorted_keys = sorted(result.keys())
+                        sorted_values = [result[k] for k in sorted_keys]
+                        if write_header:
+                            write_header = False
+                            writer.writerow(sorted_keys)
+                        writer.writerow(sorted_values)
+                        file.flush()
+                        # logger.info()
+                        logger.info(f"wrote result {i} to output csv: {result}")
+                        i += 1
+                    if not all_submitted:
+                        try:
+                            next_data = next(datapair_generator)
+                            new_future = pool.submit(process_newdata, newcols, *next_data)
+                            futures[new_future] = next_data
+                        except StopIteration:
+                            all_submitted = True
+                    break  # Exit early to allow re-entering as_completed with updated futures
+
+
 def get_files(folder_path, extension):
     return [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith(extension)]
+
+
+@entrypoint
+def do_more_metrics():
+    # output_path = "metrics_sui_big.csv"
+    dirpath = "./data/download/solana/"
+    # if os.path.exists(output_path):
+    #     os.remove(output_path)
+    newcols = sys.argv[2:]
+    for datapath, range in (
+            Seq(os.listdir(f"{dirpath}/chunks"))
+                    .map(lambda x: re.match(r"((\d+)_(\d+)).h5", x))
+                    .filter(lambda x: x is not None)
+                    .filter(lambda x: (MIN_BLOCK_EXCLUDE is None) or (int(x.group(2)) >= MIN_BLOCK_EXCLUDE))
+                    .filter(lambda x: (MAX_BLOCK_EXCLUDE is None) or (int(x.group(3)) <= MAX_BLOCK_EXCLUDE))
+                    .filter(lambda x: (int(x.group(2)) not in IGNORE_LIST) and (int(x.group(3)) not in IGNORE_LIST))
+                    .filter(lambda x: not os.path.exists(f"{dirpath}/metrics/updated_{x.group(1)}.csv"))
+                    .map(lambda x: (f"{dirpath}/chunks/{x.group(0)}", x.group(1)))
+                    .sortby(lambda x: x[1])):
+        generate_additional_data(datapath, f"{dirpath}/metrics/{range}.csv", f"{dirpath}/metrics/temp_{range}.csv",
+                                 newcols)
+        os.rename(f"{dirpath}/metrics/temp_{range}.csv", f"{dirpath}/metrics/updated_{range}.csv")
 
 
 @entrypoint(name="metrics")
@@ -197,7 +351,7 @@ def download_files(start: int, end: int, dirpath: str, filesize: int):
 
 @entrypoint
 def do_download():
-    logging.info("Starting download")
+    logger.info("Starting download")
     # start_block = 390_000_000
     start_block = int(os.getenv("START_BLOCK"))
     # start_block = 385_280_000
@@ -222,7 +376,7 @@ def do_download():
 
 
 if __name__ == "__main__":
-    # logging.basicConfig(format='%(message)s', level=logging.BASIC_FORMAT)
+    # logger.basicConfig(format='%(message)s', level=logger.BASIC_FORMAT)
     logging.basicConfig(level=logging.INFO)
     # do_download()
     # main()

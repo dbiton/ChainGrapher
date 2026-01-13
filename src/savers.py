@@ -1,4 +1,6 @@
 import logging
+logger = logging.getLogger(__name__)
+
 from itertools import count
 import json
 import os
@@ -38,7 +40,7 @@ def append_to_file(filename: str, generator, limit=None) -> None:
             dset = f['dataset']
             dset.resize((i_chunk + 1,))
             dset[i_chunk] = chunk
-        logging.info(f"Saved {end} values in total to {filename}")
+        logger.info(f"Saved {end} values in total to {filename}")
         if is_done:
             break
 
