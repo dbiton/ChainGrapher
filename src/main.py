@@ -232,7 +232,6 @@ def generate_additional_data(data_path, input_path, output_path, newcols):
         max_workers = int(os.getenv("MAX_METRIC_WORKERS", -1))
         if max_workers == -1:
             max_workers = None
-        max_workers = 1
         from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
         # ThreadPoolExecutor = DummyExecutor
         with ProcessPoolExecutor(max_workers=max_workers) as pool:
