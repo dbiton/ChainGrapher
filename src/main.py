@@ -235,7 +235,7 @@ def generate_additional_data(data_path, input_path, output_path, newcols):
         max_workers = 1
         from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
         # ThreadPoolExecutor = DummyExecutor
-        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        with ProcessPoolExecutor(max_workers=max_workers) as pool:
             futures = {pool.submit(process_newdata, newcols, *data): data for data in
                        islice(datapair_generator, max_pending)}
             all_submitted = len(futures) < max_pending
