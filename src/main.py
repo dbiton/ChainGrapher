@@ -1,4 +1,6 @@
+import contextlib
 import csv
+import functools
 import glob
 import logging
 
@@ -168,6 +170,7 @@ def process_newdata(newcols, block_number, trace_args, df):
         'costUnits': (lambda tx: tx['meta']['costUnits'],),
         'failed': (lambda tx: 0 if tx['meta']['err'] is None else 1,)
     }
+
     # "sumof::fee"
     # "sumof::computeUnitsConsumed"
     # "sumof::costUnits"
@@ -186,7 +189,7 @@ def process_newdata(newcols, block_number, trace_args, df):
     return df, new_metrics
 
 
-def generate_csv_data_pairs(data_path, input_path):
+def generate_csv_data_pairs(data_path, input_path, load_compressed_file=load_compressed_file):
     data_generator = load_compressed_file(data_path)
     dfs = pd.read_csv(input_path, dtype_backend='numpy_nullable').sort_values(by='block_number')
     df = iter(dfs.iterrows())
@@ -200,6 +203,8 @@ def generate_csv_data_pairs(data_path, input_path):
                 df_i = dict(next(df)[1])
             except StopIteration:
                 return
+
+
 # import concurrent.futures, threading
 # class DummyExecutor(concurrent.futures.Executor):
 #
@@ -225,48 +230,51 @@ def generate_csv_data_pairs(data_path, input_path):
 #     def shutdown(self, wait=True):
 #         with self._shutdownLock:
 #             self._shutdown = True
-def generate_additional_data(data_path, input_path, output_path, newcols):
-    datapair_generator = generate_csv_data_pairs(data_path, input_path)
+def generate_additional_data(data_path, input_path, output_path, newcols, load_compressed_file=load_compressed_file,
+                             pool=None):
+    datapair_generator = generate_csv_data_pairs(data_path, input_path, load_compressed_file=load_compressed_file)
     write_header = True
 
     max_pending = int(os.getenv("MAX_PENDING", 6))
 
-    with open(output_path, mode="w", newline="") as file:
-        max_workers = int(os.getenv("MAX_METRIC_WORKERS", -1))
-        if max_workers == -1:
-            max_workers = None
-        from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-        # ThreadPoolExecutor = DummyExecutor
-        with ProcessPoolExecutor(max_workers=max_workers) as pool:
-            futures = {pool.submit(process_newdata, newcols, *data): data for data in
-                       islice(datapair_generator, max_pending)}
-            all_submitted = len(futures) < max_pending
-            writer = csv.writer(file)
-            i = 0
-            while futures:
-                for future in concurrent.futures.as_completed(futures):
-                    existingvalues, result = future.result()
-                    del futures[future]
-                    if result is not None:
-                        result.update(existingvalues)
-                        sorted_keys = sorted(result.keys())
-                        sorted_values = [result[k] for k in sorted_keys]
-                        if write_header:
-                            write_header = False
-                            writer.writerow(sorted_keys)
-                        writer.writerow(sorted_values)
-                        file.flush()
-                        # logger.info()
-                        logger.info(f"wrote result {i} to output csv: {result}")
-                        i += 1
-                    if not all_submitted:
-                        try:
-                            next_data = next(datapair_generator)
-                            new_future = pool.submit(process_newdata, newcols, *next_data)
-                            futures[new_future] = next_data
-                        except StopIteration:
-                            all_submitted = True
-                    break  # Exit early to allow re-entering as_completed with updated futures
+    max_workers = int(os.getenv("MAX_METRIC_WORKERS", -1))
+    if max_workers == -1:
+        max_workers = None
+    from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+    # ThreadPoolExecutor = DummyExecutor
+    with (open(output_path, mode="w", newline="") as file,
+          (ProcessPoolExecutor(max_workers=max_workers) if pool is None else contextlib.nullcontext()) as _pool):
+        if pool is None:
+            pool = _pool
+        futures = {pool.submit(process_newdata, newcols, *data): data for data in
+                   islice(datapair_generator, max_pending)}
+        all_submitted = len(futures) < max_pending
+        writer = csv.writer(file)
+        i = 0
+        while futures:
+            for future in concurrent.futures.as_completed(futures):
+                existingvalues, result = future.result()
+                del futures[future]
+                if result is not None:
+                    result.update(existingvalues)
+                    sorted_keys = sorted(result.keys())
+                    sorted_values = [result[k] for k in sorted_keys]
+                    if write_header:
+                        write_header = False
+                        writer.writerow(sorted_keys)
+                    writer.writerow(sorted_values)
+                    file.flush()
+                    # logger.info()
+                    logger.info(f"wrote result {i} to output csv: {result}")
+                    i += 1
+                if not all_submitted:
+                    try:
+                        next_data = next(datapair_generator)
+                        new_future = pool.submit(process_newdata, newcols, *next_data)
+                        futures[new_future] = next_data
+                    except StopIteration:
+                        all_submitted = True
+                break  # Exit early to allow re-entering as_completed with updated futures
 
 
 def get_files(folder_path, extension):
@@ -280,19 +288,27 @@ def do_more_metrics():
     # if os.path.exists(output_path):
     #     os.remove(output_path)
     newcols = sys.argv[2:]
-    for datapath, range in (
-            Seq(os.listdir(f"{dirpath}/chunks"))
-                    .map(lambda x: re.match(r"((\d+)_(\d+)).h5", x))
-                    .filter(lambda x: x is not None)
-                    .filter(lambda x: (MIN_BLOCK_EXCLUDE is None) or (int(x.group(2)) >= MIN_BLOCK_EXCLUDE))
-                    .filter(lambda x: (MAX_BLOCK_EXCLUDE is None) or (int(x.group(3)) <= MAX_BLOCK_EXCLUDE))
-                    .filter(lambda x: (int(x.group(2)) not in IGNORE_LIST) and (int(x.group(3)) not in IGNORE_LIST))
-                    .filter(lambda x: not os.path.exists(f"{dirpath}/metrics/updated_{x.group(1)}.csv"))
-                    .map(lambda x: (f"{dirpath}/chunks/{x.group(0)}", x.group(1)))
-                    .sortby(lambda x: x[1])):
-        generate_additional_data(datapath, f"{dirpath}/metrics/{range}.csv", f"{dirpath}/metrics/temp_{range}.csv",
-                                 newcols)
-        os.rename(f"{dirpath}/metrics/temp_{range}.csv", f"{dirpath}/metrics/updated_{range}.csv")
+    filelist = (Seq(os.listdir(f"{dirpath}/chunks"))
+                .map(lambda x: re.match(r"((\d+)_(\d+)).h5", x))
+                .filter(lambda x: x is not None)
+                .filter(lambda x: (MIN_BLOCK_EXCLUDE is None) or (int(x.group(2)) >= MIN_BLOCK_EXCLUDE))
+                .filter(lambda x: (MAX_BLOCK_EXCLUDE is None) or (int(x.group(3)) <= MAX_BLOCK_EXCLUDE))
+                .filter(lambda x: (int(x.group(2)) not in IGNORE_LIST) and (int(x.group(3)) not in IGNORE_LIST))
+                .filter(lambda x: not os.path.exists(f"{dirpath}/metrics/updated_{x.group(1)}.csv"))
+                .map(lambda x: (f"{dirpath}/chunks/{x.group(0)}", x.group(1)))
+                .sortby(lambda x: x[1])).tolist()
+    load_maxpending = os.getenv("LOAD_MAXPENDING", 2)
+    metric_max_workers = int(os.getenv("MAX_METRIC_WORKERS", -1))
+    if metric_max_workers == -1:
+        metric_max_workers = None
+    with (ProcessPoolExecutor(load_maxpending) as load_executor_pool,
+          ProcessPoolExecutor(max_workers=metric_max_workers) as comp_executor_pool):
+        load_compressed_file_pross = functools.partial(loaders.load_compressed_file_executor, functools.PlaceHolder,
+                                                       load_executor_pool, load_maxpending)
+        for datapath, range in filelist:
+            generate_additional_data(datapath, f"{dirpath}/metrics/{range}.csv", f"{dirpath}/metrics/temp_{range}.csv",
+                                     newcols, load_compressed_file=load_compressed_file_pross, pool=comp_executor_pool)
+            os.rename(f"{dirpath}/metrics/temp_{range}.csv", f"{dirpath}/metrics/updated_{range}.csv")
 
 
 @entrypoint(name="metrics")
