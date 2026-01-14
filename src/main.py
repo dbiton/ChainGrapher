@@ -46,6 +46,7 @@ crypto_interface = solana_interface
 main_func_registry = {}
 
 MAX_BLOCK_EXCLUDE, MIN_BLOCK_EXCLUDE = None, None
+EXACT_LIST = []
 IGNORE_LIST = []
 
 
@@ -293,7 +294,8 @@ def do_more_metrics():
                 .filter(lambda x: x is not None)
                 .filter(lambda x: (MIN_BLOCK_EXCLUDE is None) or (int(x.group(2)) >= MIN_BLOCK_EXCLUDE))
                 .filter(lambda x: (MAX_BLOCK_EXCLUDE is None) or (int(x.group(3)) <= MAX_BLOCK_EXCLUDE))
-                .filter(lambda x: (int(x.group(2)) not in IGNORE_LIST) and (int(x.group(3)) not in IGNORE_LIST))
+                .filter(lambda x: (int(x.group(2)) in IGNORE_LIST) and (int(x.group(3)) in IGNORE_LIST)
+                        or (int(x.group(2)) not in EXACT_LIST) and (int(x.group(3)) not in EXACT_LIST))
                 .filter(lambda x: not os.path.exists(f"{dirpath}/metrics/v2/{x.group(1)}.csv"))
                 .map(lambda x: (f"{dirpath}/chunks/{x.group(0)}", x.group(1)))
                 .sortby(lambda x: x[1])).tolist()
@@ -323,7 +325,7 @@ def do_metrics():
                     .filter(lambda x: x is not None)
                     .filter(lambda x: (MIN_BLOCK_EXCLUDE is None) or (int(x.group(2)) >= MIN_BLOCK_EXCLUDE))
                     .filter(lambda x: (MAX_BLOCK_EXCLUDE is None) or (int(x.group(3)) <= MAX_BLOCK_EXCLUDE))
-                    .filter(lambda x: (int(x.group(2)) not in IGNORE_LIST) and (int(x.group(3)) not in IGNORE_LIST))
+                    .filter(lambda x: ((int(x.group(2)) not in IGNORE_LIST) and (int(x.group(3)) not in IGNORE_LIST)) or (int(x.group(2)) not in IGNORE_LIST) and (int(x.group(3)) not in IGNORE_LIST))
                     .filter(lambda x: not os.path.exists(f"{dirpath}/metrics/{x.group(1)}.csv"))
                     .map(lambda x: (f"{dirpath}/chunks/{x.group(0)}", x.group(1)))
                     .sortby(lambda x: x[1])):
@@ -404,5 +406,7 @@ if __name__ == "__main__":
         MIN_BLOCK_EXCLUDE = int(os.getenv("MIN_BLOCK_EXCLUDE"))
     if os.getenv("IGNORE") is not None:
         IGNORE_LIST = {int(y) for x in os.getenv("IGNORE").split(",") if (y := x.strip()) != ""}
+    if os.getenv("EXACT_LIST") is not None:
+        EXACT_LIST = {int(y) for x in os.getenv("EXACT_LIST").split(",") if (y := x.strip()) != ""}
 
     do_main_func(sys.argv[1])
