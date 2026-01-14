@@ -301,13 +301,13 @@ def do_more_metrics():
     metric_max_workers = int(os.getenv("MAX_METRIC_WORKERS", -1))
     if metric_max_workers == -1:
         metric_max_workers = None
-    with (ThreadPoolExecutor(load_maxpending) as load_executor_pool,
+    with (#ThreadPoolExecutor(load_maxpending) as load_executor_pool,
           ProcessPoolExecutor(max_workers=metric_max_workers) as comp_executor_pool):
-        load_compressed_file_pross = lambda x: loaders.load_compressed_file_executor(x,
-                                                       load_executor_pool, load_maxpending)
+        # load_compressed_file_pross = lambda x: loaders.load_compressed_file_executor(x,
+        #                                                load_executor_pool, load_maxpending)
         for datapath, range in filelist:
             generate_additional_data(datapath, f"{dirpath}/metrics/{range}.csv", f"{dirpath}/metrics/temp_{range}.csv",
-                                     newcols, load_compressed_file=load_compressed_file_pross, pool=comp_executor_pool)
+                                     newcols, pool=comp_executor_pool)
             os.rename(f"{dirpath}/metrics/temp_{range}.csv", f"{dirpath}/metrics/updated_{range}.csv")
 
 
