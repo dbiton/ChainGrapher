@@ -27,12 +27,13 @@ def uncompress_chunk_process(dset, i, processpool):
     chunk = dset[i]
     if len(chunk) == 0:
         return []
-    chunk = bytes(chunk)
+
     future = processpool.submit(uncompress_chunk_given, chunk)
     chunk = future.result()
     return chunk
 def uncompress_chunk_given(arg):
     chunk = arg
+    chunk = bytes(chunk)
     if len(chunk) == 0:
         return []
     chunk = zlib.decompress(chunk)
