@@ -297,7 +297,7 @@ def do_more_metrics():
                 .filter(lambda x: not os.path.exists(f"{dirpath}/metrics/updated_{x.group(1)}.csv"))
                 .map(lambda x: (f"{dirpath}/chunks/{x.group(0)}", x.group(1)))
                 .sortby(lambda x: x[1])).tolist()
-    load_maxpending = os.getenv("LOAD_MAXPENDING", 2)
+    load_maxpending = int(os.getenv("LOAD_MAXPENDING", 2))
     metric_max_workers = int(os.getenv("MAX_METRIC_WORKERS", -1))
     if metric_max_workers == -1:
         metric_max_workers = None
