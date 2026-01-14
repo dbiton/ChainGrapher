@@ -294,7 +294,7 @@ def do_more_metrics():
                 .filter(lambda x: (MIN_BLOCK_EXCLUDE is None) or (int(x.group(2)) >= MIN_BLOCK_EXCLUDE))
                 .filter(lambda x: (MAX_BLOCK_EXCLUDE is None) or (int(x.group(3)) <= MAX_BLOCK_EXCLUDE))
                 .filter(lambda x: (int(x.group(2)) not in IGNORE_LIST) and (int(x.group(3)) not in IGNORE_LIST))
-                .filter(lambda x: not os.path.exists(f"{dirpath}/metrics/updated_{x.group(1)}.csv"))
+                .filter(lambda x: not os.path.exists(f"{dirpath}/metrics/v2/{x.group(1)}.csv"))
                 .map(lambda x: (f"{dirpath}/chunks/{x.group(0)}", x.group(1)))
                 .sortby(lambda x: x[1])).tolist()
     load_maxpending = int(os.getenv("LOAD_MAXPENDING", 2))
@@ -306,9 +306,9 @@ def do_more_metrics():
         # load_compressed_file_pross = lambda x: loaders.load_compressed_file_executor(x,
         #                                                load_executor_pool, load_maxpending)
         for datapath, range in filelist:
-            generate_additional_data(datapath, f"{dirpath}/metrics/{range}.csv", f"{dirpath}/metrics/temp_{range}.csv",
+            generate_additional_data(datapath, f"{dirpath}/metrics/v1/{range}.csv", f"{dirpath}/metrics/v2/temp_{range}.csv",
                                      newcols, pool=comp_executor_pool)
-            os.rename(f"{dirpath}/metrics/temp_{range}.csv", f"{dirpath}/metrics/updated_{range}.csv")
+            os.rename(f"{dirpath}/metrics/v2/temp_{range}.csv", f"{dirpath}/metrics/v2/{range}.csv")
 
 
 @entrypoint(name="metrics")
