@@ -143,27 +143,43 @@ def generate_data(data_path, output_path):
                             all_submitted = True
                     break  # Exit early to allow re-entering as_completed with updated futures
 
-
+def lazy(exp, tuple_size=None):
+    val = None
+    def getter():
+        nonlocal val
+        if val is None:
+            val = exp()
+        return val
+    if tuple_size is None:
+        return getter
+    else:
+        return tuple(lambda: getter()[i] for i in range(tuple_size))
 def process_newdata(newcols, block_number, trace_args, df):
     logger.info(f"Processing {block_number}...")
     logger.info(f"Getting additional metrics {block_number}...")
     # trace_args = list(trace_args)
     # trace_args[1] = [tx for tx in trace_args[1] if crypto_interface._get_tx_type(tx) in USER_KINDS]
     logger.info(f"Creating conflict graph {block_number}...")
-    G, txs, reads, writes = crypto_interface.get_conflict_graph_rwsets([trace_args])
-    G: nx.Graph = G
+    G, txs, reads, writes = lazy(lambda : crypto_interface.get_conflict_graph_rwsets([trace_args]), tuple_size=4)
+    #  =  lazy_rwsets()
+    # G: nx.Graph = G
     block = trace_args
 
     new_metrics = {}
     logger.info(f"Getting graph metrics {block_number}...")
 
-    if 'edge-count' in newcols:
-        new_metrics['edge_count'] = len(G)
+    if 'single-nodes' in newcols:
+        new_metrics['single-nodes'] = nx.isolates(G())
 
-    if 'no-ww-conflics' in newcols:
-        G_W = crypto_interface.create_conflict_graph_from_writewrite_only(txs, writes)
-        new_metrics['wwconflicts_count'] = len(G_W.edges)
-        new_metrics['wwconflicts_exclusive'] = len(nx.difference(G_W, G).edges)
+    if 'edge-count' in newcols:
+        new_metrics['edge_count'] = len(G())
+
+    if 'instructions':
+
+    # if 'no-ww-conflics' in newcols:
+    #     G_W = crypto_interface.create_conflict_graph_from_writewrite_only(txs, writes)
+    #     new_metrics['wwconflicts_count'] = len(G_W.edges)
+    #     new_metrics['wwconflicts_exclusive'] = len(nx.difference(G_W, G).edges)
 
     field_stuff = {
         'fee': (lambda tx: tx['meta']['fee'],),
@@ -292,7 +308,7 @@ def do_more_metrics():
     filelist = (Seq(os.listdir(f"{dirpath}/chunks"))
                 .map(lambda x: re.match(r"((\d+)_(\d+)).h5", x))
                 .filter(lambda x: x is not None)
-                .filter(lambda x: (MIN_BLOCK_EXCLUDE is None) or (int(x.group(2)) > MIN_BLOCK_EXCLUDE))
+                .filter(lambda x: (MIN_BLOCK_EXCLUDE is None) or (int(x.group(2)) >= MIN_BLOCK_EXCLUDE))
                 .filter(lambda x: (MAX_BLOCK_EXCLUDE is None) or (int(x.group(3)) < MAX_BLOCK_EXCLUDE))
                 .filter(lambda x: (int(x.group(2)) in IGNORE_LIST) or (int(x.group(3)) in IGNORE_LIST)
                         or (int(x.group(2)) not in EXACT_LIST) and (int(x.group(3)) not in EXACT_LIST))
