@@ -175,7 +175,7 @@ def process_newdata(newcols, block_number, trace_args, df):
         new_metrics['edge_count'] = len(G())
 
     if 'instructions':
-
+        pass
     # if 'no-ww-conflics' in newcols:
     #     G_W = crypto_interface.create_conflict_graph_from_writewrite_only(txs, writes)
     #     new_metrics['wwconflicts_count'] = len(G_W.edges)
