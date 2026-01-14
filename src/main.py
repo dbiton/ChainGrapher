@@ -16,7 +16,7 @@ import os
 
 import infixpy
 from dotenv import load_dotenv
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 import itertools
 import concurrent.futures
 from infixpy import *
@@ -301,7 +301,7 @@ def do_more_metrics():
     metric_max_workers = int(os.getenv("MAX_METRIC_WORKERS", -1))
     if metric_max_workers == -1:
         metric_max_workers = None
-    with (ProcessPoolExecutor(load_maxpending) as load_executor_pool,
+    with (ThreadPoolExecutor(load_maxpending) as load_executor_pool,
           ProcessPoolExecutor(max_workers=metric_max_workers) as comp_executor_pool):
         load_compressed_file_pross = lambda x: loaders.load_compressed_file_executor(x,
                                                        load_executor_pool, load_maxpending)
