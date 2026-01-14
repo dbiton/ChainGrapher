@@ -19,6 +19,8 @@ def uncompress_chunk(dset, i):
     chunk = json.loads(chunk)
     return chunk
 
+
+
 def load_compressed_file(filepath: str, limit=None):
     try:
         if os.path.exists(filepath+"_errors.txt"):
@@ -59,34 +61,44 @@ def load_compressed_file(filepath: str, limit=None):
         print(repr(e))
         os._exit(1)
 
+def uncompress_chunk_openfile(filepath, i):
+    with h5py.File(filepath, 'r') as f:
+        dset = f['dataset']
+        chunk = dset[i]
+        if len(chunk) == 0:
+            return []
+        chunk = bytes(chunk)
+        chunk = zlib.decompress(chunk)
+        chunk = chunk.decode('ascii')
+        chunk = json.loads(chunk)
+        return chunk
 def load_compressed_file_executor(filepath: str, pool,max_pending):
     try:
         if os.path.exists(filepath+"_errors.txt"):
             os.remove(filepath+"_errors.txt")
         if os.path.exists(filepath):
-            with h5py.File(filepath, 'r') as f, open(filepath+"_errors.txt", 'a') as f:
-                dset = f['dataset']
-                i_entry = 0
-                chunk_count = dset.shape[0]
-                futures = [
-                    pool.submit(uncompress_chunk, dset, i_chunk)
-                    for i_chunk in range(min(max_pending, chunk_count))
-                ]
-                i_chunk = len(futures)
-                while len(futures) > 0:
-                    future = futures[0]
-                    futures = futures[1:]
-                    entries = future.result()
-                    for (i,entry) in entries:
-                        i_entry += 1
-                        logger.info(f"loaded {i_entry} values from {filepath}")
-                        if "error" in entry:
-                            f.write(f"{i_entry}\t{entry['error']['message']}\n")
-                            continue
-                        yield [i, entry["result"]]
-                    if i_chunk < chunk_count:
-                        futures.append(pool.submit(uncompress_chunk, dset, i_chunk))
-                        i_chunk += 1
+            with h5py.File(filepath, 'r') as f_h5, open(filepath+"_errors.txt", 'a') as f_err:
+                chunk_count = f_h5['dataset'].shape[0]
+            i_entry = 0
+            futures = [
+                pool.submit(uncompress_chunk_openfile, filepath, i_chunk)
+                for i_chunk in range(min(max_pending, chunk_count))
+            ]
+            i_chunk = len(futures)
+            while len(futures) > 0:
+                future = futures[0]
+                futures = futures[1:]
+                entries = future.result()
+                for (i,entry) in entries:
+                    i_entry += 1
+                    logger.info(f"loaded {i_entry} values from {filepath}")
+                    if "error" in entry:
+                        f_err.write(f"{i_entry}\t{entry['error']['message']}\n")
+                        continue
+                    yield [i, entry["result"]]
+                if i_chunk < chunk_count:
+                    futures.append(pool.submit(uncompress_chunk, filepath, i_chunk))
+                    i_chunk += 1
         else:
             logger.error("No traces file found.")
     except Exception as e:
