@@ -294,7 +294,7 @@ def do_more_metrics():
                 .filter(lambda x: x is not None)
                 .filter(lambda x: (MIN_BLOCK_EXCLUDE is None) or (int(x.group(2)) >= MIN_BLOCK_EXCLUDE))
                 .filter(lambda x: (MAX_BLOCK_EXCLUDE is None) or (int(x.group(3)) <= MAX_BLOCK_EXCLUDE))
-                .filter(lambda x: (int(x.group(2)) in IGNORE_LIST) and (int(x.group(3)) in IGNORE_LIST)
+                .filter(lambda x: (int(x.group(2)) in IGNORE_LIST) or (int(x.group(3)) in IGNORE_LIST)
                         or (int(x.group(2)) not in EXACT_LIST) and (int(x.group(3)) not in EXACT_LIST))
                 .filter(lambda x: not os.path.exists(f"{dirpath}/metrics/v2/{x.group(1)}.csv"))
                 .map(lambda x: (f"{dirpath}/chunks/{x.group(0)}", x.group(1)))
