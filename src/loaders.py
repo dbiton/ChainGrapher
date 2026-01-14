@@ -59,6 +59,17 @@ def load_compressed_file(filepath: str, limit=None):
         print(repr(e))
         os._exit(1)
 
+def uncompress_chunk_loading(filepath, i):
+    with h5py.File(filepath, 'r') as f_h5:
+        dset = f_h5['dataset']
+        chunk = dset[i]
+        if len(chunk) == 0:
+            return []
+        chunk = bytes(chunk)
+        chunk = zlib.decompress(chunk)
+        chunk = chunk.decode('ascii')
+        chunk = json.loads(chunk)
+        return chunk
 def load_compressed_file_executor(filepath: str, pool,max_pending):
     try:
         if os.path.exists(filepath+"_errors.txt"):
@@ -69,7 +80,8 @@ def load_compressed_file_executor(filepath: str, pool,max_pending):
                 i_entry = 0
                 chunk_count = dset.shape[0]
                 futures = [
-                    pool.submit(uncompress_chunk, dset, i_chunk)
+                    pool.submit(uncompress_chunk_loading, filepath, i_chunk)
+                    # pool.submit(uncompress_chunk, dset, i_chunk)
                     for i_chunk in range(min(max_pending, chunk_count))
                 ]
                 i_chunk = len(futures)
@@ -85,7 +97,8 @@ def load_compressed_file_executor(filepath: str, pool,max_pending):
                             continue
                         yield [i, entry["result"]]
                     if i_chunk < chunk_count:
-                        futures.append(pool.submit(uncompress_chunk, dset, i_chunk))
+                        futures.append(pool.submit(uncompress_chunk_loading, filepath, i_chunk))
+                        # futures.append(pool.submit(uncompress_chunk, dset, i_chunk))
                         i_chunk += 1
         else:
             logger.error("No traces file found.")
