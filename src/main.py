@@ -303,7 +303,7 @@ def do_more_metrics():
         metric_max_workers = None
     with (ProcessPoolExecutor(load_maxpending) as load_executor_pool,
           ProcessPoolExecutor(max_workers=metric_max_workers) as comp_executor_pool):
-        load_compressed_file_pross = functools.partial(loaders.load_compressed_file_executor, functools.PlaceHolder,
+        load_compressed_file_pross = lambda x: loaders.load_compressed_file_executor(x,
                                                        load_executor_pool, load_maxpending)
         for datapath, range in filelist:
             generate_additional_data(datapath, f"{dirpath}/metrics/{range}.csv", f"{dirpath}/metrics/temp_{range}.csv",
