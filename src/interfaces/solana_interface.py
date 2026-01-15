@@ -163,11 +163,11 @@ class SolanaInterface(Interface):
             tx_id = sigs[0]
             read_addrs, write_addrs, program_addrs = self._parse_tx(tx_entry)
 
-            if read_addrs:
-                reads[tx_id] = read_addrs
-            if write_addrs:
-                writes[tx_id] = write_addrs
-            if program_addrs:
-                programs[tx_id] = program_addrs
+            #if read_addrs:
+            reads[tx_id] = read_addrs
+            #if write_addrs:
+            writes[tx_id] = write_addrs
+            #if program_addrs:
+            programs[tx_id] = program_addrs
             txs.append(tx_id)
         return reads, txs, writes, programs
