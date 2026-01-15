@@ -334,7 +334,7 @@ def process_newdata(newcols, block_number, trace_args, df):
 
     # crypto_interface.get_additional_metrics(block_number, trace_args)
     # metrics.update(get_graph_metrics(G))
-    print(df, new_metrics, new_metrics_extra_file)
+    # print(df, new_metrics, new_metrics_extra_file)
     return df, new_metrics, new_metrics_extra_file
 
 
