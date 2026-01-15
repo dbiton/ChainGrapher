@@ -217,7 +217,7 @@ def generate_csv_data_pairs(data_path, input_path, load_compressed_file=load_com
     # _, cols = next(df)
     df_i = dict(next(df)[1])
     for data_i in data_generator:
-        if df_i['block_number'] == data_i[1]['parentSlot'] + 1:
+        if df_i['block_number'] == data_i[0]:
             yield *data_i, df_i
             try:
                 df_i = dict(next(df)[1])
@@ -225,7 +225,7 @@ def generate_csv_data_pairs(data_path, input_path, load_compressed_file=load_com
                 return
         elif "error" not in data_i:
             print(repr(data_i))
-            raise Exception("Unexpected error in fetching data" + repr(data_i))
+            raise Exception(repr(data_i)+"\nUnexpected error in fetching data" )
 
 
 # import concurrent.futures, threading
