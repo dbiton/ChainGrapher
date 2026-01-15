@@ -174,14 +174,15 @@ def plot_data_dir(csv_dir, chain_interface: Interface):
     plot_data_filelist(all_files, chain_interface)
 
 def plot_data_filelist(all_files, chain_interface: Interface):
-    df = pd.concat((pd.read_csv(f) for f in all_files), ignore_index=True)
+    df = pd.concat(((print(f),pd.read_csv(f))[1] for f in all_files), ignore_index=True)
     with open(f"{FIGS_DIR}/figs.tex", 'a') as f:
        plot_data_df(df, chain_interface,print=lambda x:print(x,file=f))
 
 def plot_data(csv_path, chain_interface: Interface):
     df = pd.read_csv(csv_path)
     df = df.drop_duplicates(subset='block_number', keep='first')
-    plot_data_df(df, chain_interface)
+    plot_data_
+    df(df, chain_interface)
 def plot_data_df(df, chain_interface: Interface,print=print):
     markers = ["o", "s", "^", "v", "D", "*"]
     
@@ -203,6 +204,11 @@ def plot_data_df(df, chain_interface: Interface,print=print):
     plot_density_distribution(df,print=print)
     df['min_path_chromatic_ratio'] = df['longest_path_length_monte_carlo'] / df['greedy_color']
     df['max_path_chromatic_ratio'] = df['largest_conn_comp'] / df['clique_number']
+    df['avg_fee'] = df['sumof_fee'] / df['txs']
+    df['avg_computeUnitsConsumed'] = df['sumof_computeUnitsConsumed'] / df['txs']
+    df['avg_costUnits'] = df['sumof_costUnits'] / df['txs']
+    df['avg_failed'] = df['sumof_failed'] / df['txs']
+
     # df['user_tx_ratio'] = df['user_tx_count'] / df['txs']
     # df['system_tx_ratio'] = df['system_tx_count'] / df['txs']
     # df['mean_sui_transfered'] = df['total_sui_transfered'] / df['txs']

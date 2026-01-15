@@ -49,6 +49,9 @@ MAX_BLOCK_EXCLUDE, MIN_BLOCK_EXCLUDE = None, None
 EXACT_LIST = []
 IGNORE_LIST = []
 
+V="v2"
+V_Old,V_new="v1","v2"
+
 
 def register_entrypoint(func, name):
     global main_func_registry
@@ -168,7 +171,7 @@ def process_newdata(newcols, block_number, trace_args, df):
     new_metrics = {}
     logger.info(f"Getting graph metrics {block_number}...")
 
-    if 'single-nodes' in newcols:
+    if 'isolates' in newcols:
         new_metrics['single-nodes'] = nx.isolates(G())
 
     if 'edge-count' in newcols:
@@ -220,6 +223,9 @@ def generate_csv_data_pairs(data_path, input_path, load_compressed_file=load_com
                 df_i = dict(next(df)[1])
             except StopIteration:
                 return
+        elif "error" not in data_i:
+            print(repr(data_i))
+            raise Exception("Unexpected error in fetching data" + repr(data_i))
 
 
 # import concurrent.futures, threading
@@ -312,7 +318,7 @@ def do_more_metrics():
                 .filter(lambda x: (MAX_BLOCK_EXCLUDE is None) or (int(x.group(3)) < MAX_BLOCK_EXCLUDE))
                 .filter(lambda x: (int(x.group(2)) in IGNORE_LIST) or (int(x.group(3)) in IGNORE_LIST)
                         or (int(x.group(2)) not in EXACT_LIST) and (int(x.group(3)) not in EXACT_LIST))
-                .filter(lambda x: not os.path.exists(f"{dirpath}/metrics/v2/{x.group(1)}.csv"))
+                .filter(lambda x: not os.path.exists(f"{dirpath}/metrics/{V_new}/{x.group(1)}.csv"))
                 .map(lambda x: (f"{dirpath}/chunks/{x.group(0)}", x.group(1)))
                 .sortby(lambda x: x[1])).tolist()
     load_maxpending = int(os.getenv("LOAD_MAXPENDING", 2))
@@ -324,9 +330,9 @@ def do_more_metrics():
         # load_compressed_file_pross = lambda x: loaders.load_compressed_file_executor(x,
         #                                                load_executor_pool, load_maxpending)
         for datapath, range in filelist:
-            generate_additional_data(datapath, f"{dirpath}/metrics/v1/{range}.csv", f"{dirpath}/metrics/v2/temp_{range}.csv",
+            generate_additional_data(datapath, f"{dirpath}/metrics/{V_Old}/{range}.csv", f"{dirpath}/metrics/{V_new}/temp_{range}.csv",
                                      newcols, pool=comp_executor_pool)
-            os.rename(f"{dirpath}/metrics/v2/temp_{range}.csv", f"{dirpath}/metrics/v2/{range}.csv")
+            os.rename(f"{dirpath}/metrics/{V_new}/temp_{range}.csv", f"{dirpath}/metrics/{V_new}/{range}.csv")
 
 
 @entrypoint(name="metrics")
@@ -340,9 +346,9 @@ def do_metrics():
                     .map(lambda x: re.match(r"((\d+)_(\d+)).h5", x))
                     .filter(lambda x: x is not None)
                     .filter(lambda x: (MIN_BLOCK_EXCLUDE is None) or (int(x.group(2)) >= MIN_BLOCK_EXCLUDE))
-                    .filter(lambda x: (MAX_BLOCK_EXCLUDE is None) or (int(x.group(3)) <= MAX_BLOCK_EXCLUDE))
+                    .filter(lambda x: (MAX_BLOCK_EXCLUDE is None) or (int(x.group(3)) < MAX_BLOCK_EXCLUDE))
                     .filter(lambda x: ((int(x.group(2)) not in IGNORE_LIST) and (int(x.group(3)) not in IGNORE_LIST)) or (int(x.group(2)) not in IGNORE_LIST) and (int(x.group(3)) not in IGNORE_LIST))
-                    .filter(lambda x: not os.path.exists(f"{dirpath}/metrics/{x.group(1)}.csv"))
+                    .filter(lambda x: not os.path.exists(f"{dirpath}/metrics/{V}/{x.group(1)}.csv"))
                     .map(lambda x: (f"{dirpath}/chunks/{x.group(0)}", x.group(1)))
                     .sortby(lambda x: x[1])):
         generate_data(datapath, f"{dirpath}/metrics/temp_{range}.csv")
@@ -351,11 +357,11 @@ def do_metrics():
 
 @entrypoint
 def do_plots():
-    all_files = (Seq(glob.glob(os.path.join("./data/download/solana/metrics", "*.csv")))
+    all_files = (Seq(glob.glob(os.path.join(f"./data/download/solana/metrics/{V}/", "*.csv")))
                  .map(lambda x: (x, re.match(r".+/((\d+)_(\d+)).csv", x)))
                  .filter(lambda x: x[1] is not None)
                  .filter(lambda x: (MIN_BLOCK_EXCLUDE is None) or (int(x[1].group(2)) >= MIN_BLOCK_EXCLUDE))
-                 .filter(lambda x: (MAX_BLOCK_EXCLUDE is None) or (int(x[1].group(3)) <= MAX_BLOCK_EXCLUDE))
+                 .filter(lambda x: (MAX_BLOCK_EXCLUDE is None) or (int(x[1].group(3)) < MAX_BLOCK_EXCLUDE))
                  .filter(lambda x: (int(x[1].group(2)) not in IGNORE_LIST) and (int(x[1].group(3)) not in IGNORE_LIST))
                  .sortby(lambda x: x[1].group(1))
                  .map(lambda x: x[0])
