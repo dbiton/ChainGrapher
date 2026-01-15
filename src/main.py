@@ -1,3 +1,4 @@
+import collections
 import contextlib
 import csv
 import functools
@@ -50,7 +51,7 @@ EXACT_LIST = []
 IGNORE_LIST = []
 
 V="v2"
-V_Old,V_new="v1","v2"
+V_Old,V_new="v2","v3"
 
 
 def register_entrypoint(func, name):
@@ -157,28 +158,154 @@ def lazy(exp, tuple_size=None):
         return getter
     else:
         return tuple(lambda: getter()[i] for i in range(tuple_size))
+
+solana_std_program_ids = {
+    # Core Native Programs
+    "11111111111111111111111111111111": {
+        "name": "System Program",
+        "description": "Creates accounts, transfers SOL, and assigns program ownership.",
+        "group": "Native"
+    },
+    "Vote111111111111111111111111111111111111111": {
+        "name": "Vote Program",
+        "description": "Manages validator voting stakes and state.",
+        "group": "Native"
+    },
+    "Stake11111111111111111111111111111111111111": {
+        "name": "Stake Program",
+        "description": "Manages SOL staking for delegation to validators.",
+        "group": "Native"
+    },
+    "Config1111111111111111111111111111111111111": {
+        "name": "Config Program",
+        "description": "Manages chain-wide configuration data.",
+        "group": "Native"
+    },
+    "ComputeBudget111111111111111111111111111111": {
+        "name": "Compute Budget Program",
+        "description": "Sets compute unit limits and priority fees for transactions.",
+        "group": "Native"
+    },
+    "AddressLookupTab1e1111111111111111111111111": {
+        "name": "Address Lookup Table Program",
+        "description": "Manages Address Lookup Tables (ALTs) for versioned transactions.",
+        "group": "Native"
+    },
+    "Ed25519SigVerify111111111111111111111111111": {
+        "name": "Ed25519 Signature Verify",
+        "description": "Verifies Ed25519 signatures (used for cross-chain ops).",
+        "group": "Native"
+    },
+    "KeccakSecp256k11111111111111111111111111111": {
+        "name": "Secp256k1 Signature Verify",
+        "description": "Verifies Secp256k1 signatures (Ethereum/Bitcoin compatibility).",
+        "group": "Native"
+    },
+
+    # SPL Programs
+    "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA": {
+        "name": "Token Program",
+        "description": "The standard for fungible and non-fungible tokens on Solana.",
+        "group": "SPL"
+    },
+    "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL": {
+        "name": "Associated Token Program",
+        "description": "Deterministically maps a wallet address to its token accounts.",
+        "group": "SPL"
+    },
+    "MemoSq4gqABAXmK96DPVE9PCrmJ4y5yLPbXIcKBWu3": {
+        "name": "Memo Program",
+        "description": "Attaches a UTF-8 string (memo) to a transaction (Version 2).",
+        "group": "SPL"
+    },
+    "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb": {
+        "name": "Token-2022 Program",
+        "description": "The new Token Extensions program with advanced features.",
+        "group": "SPL"
+    },
+    "namesLPneVptA9Z5rqUDD9tMTWEJwofgaYwp8cawRkX": {
+        "name": "Name Service",
+        "description": "Manages .sol domain names (Bonfida).",
+        "group": "SPL"
+    },
+
+    # Loaders
+    "BPFLoaderUpgradeab1e11111111111111111111111": {
+        "name": "BPF Upgradeable Loader",
+        "description": "The standard loader for most user programs.",
+        "group": "Loader"
+    },
+    "BPFLoader2111111111111111111111111111111111": {
+        "name": "BPF Loader 2",
+        "description": "Legacy loader.",
+        "group": "Loader"
+    },
+    "BPFLoader1111111111111111111111111111111111": {
+        "name": "BPF Loader 1",
+        "description": "Legacy loader.",
+        "group": "Loader"
+    },
+
+    # Ecosystem
+    "worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth": {
+        "name": "Wormhole Core Bridge",
+        "description": "Cross-chain bridge infrastructure.",
+        "group": "Ecosystem"
+    },
+    "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s": {
+        "name": "Metaplex Token Metadata",
+        "description": "Manages NFT metadata standards.",
+        "group": "Ecosystem"
+    }
+}
+solana_std_program_idx = sorted(solana_std_program_ids.keys())
+solana_std_program_csvheader = "StandardPrograms___"+"__".join(solana_std_program_idx)+"___"
 def process_newdata(newcols, block_number, trace_args, df):
     logger.info(f"Processing {block_number}...")
     logger.info(f"Getting additional metrics {block_number}...")
     # trace_args = list(trace_args)
     # trace_args[1] = [tx for tx in trace_args[1] if crypto_interface._get_tx_type(tx) in USER_KINDS]
     logger.info(f"Creating conflict graph {block_number}...")
-    G, txs, reads, writes = lazy(lambda : crypto_interface.get_conflict_graph_rwsets([trace_args]), tuple_size=4)
+    # G, txs, reads, writes, programs = lazy(lambda : crypto_interface.get_conflict_graph_rwsets([trace_args]), tuple_size=5)
+    G, txs, reads, writes, programs = crypto_interface.get_conflict_graph_rwsets([trace_args])
     #  =  lazy_rwsets()
     # G: nx.Graph = G
     block = trace_args
 
     new_metrics = {}
+    new_metrics_extra_file = {'block_number': block_number}
     logger.info(f"Getting graph metrics {block_number}...")
 
     if 'isolates' in newcols:
-        new_metrics['single-nodes'] = nx.isolates(G())
+        new_metrics['isolates'] = nx.number_of_isolates(G)
 
     if 'edge-count' in newcols:
         new_metrics['edge_count'] = len(G())
 
     if 'instructions':
-        pass
+        totalProgramVector = [0 for _ in range(len(solana_std_program_idx))]
+        total_programs = 0
+        total_pure_reads = 0
+        distinct_nonstd_programs = collections.defaultdict(int)
+        using_nonstd_programs = 0
+        for tx_id in txs:
+            progs = programs[tx_id]
+            totalProgramVector = [totalProgramVector[i] + int(solana_std_program_idx[i] in progs) for i in range(len(solana_std_program_idx))]
+            total_programs += len(progs)
+            nonstd_programs = progs - solana_std_program_ids.keys()
+            for nonstd_program in nonstd_programs:
+                distinct_nonstd_programs[nonstd_program] +=1
+            if nonstd_programs:
+                using_nonstd_programs += 1
+            total_pure_reads += len(reads[tx_id] - progs)
+
+        new_metrics[solana_std_program_csvheader] = totalProgramVector
+        new_metrics['total_programs']= total_programs
+        new_metrics['txs_using_nonstd_programs']= using_nonstd_programs
+        new_metrics['no_distinct_nonstd_programs']= len(distinct_nonstd_programs)
+        new_metrics['total_pure_reads']= total_pure_reads
+        new_metrics_extra_file['distinct_nonstd_programs']= dict(distinct_nonstd_programs)
+
     # if 'no-ww-conflics' in newcols:
     #     G_W = crypto_interface.create_conflict_graph_from_writewrite_only(txs, writes)
     #     new_metrics['wwconflicts_count'] = len(G_W.edges)
@@ -186,6 +313,7 @@ def process_newdata(newcols, block_number, trace_args, df):
 
     field_stuff = {
         'fee': (lambda tx: tx['meta']['fee'],),
+        'instructionsCount': (lambda tx: len(tx['transaction']['message']['instructions']),),
         'computeUnitsConsumed': (lambda tx: tx['meta']['computeUnitsConsumed'],),
         'costUnits': (lambda tx: tx['meta']['costUnits'],),
         'failed': (lambda tx: 0 if tx['meta']['err'] is None else 1,)
@@ -206,7 +334,8 @@ def process_newdata(newcols, block_number, trace_args, df):
 
     # crypto_interface.get_additional_metrics(block_number, trace_args)
     # metrics.update(get_graph_metrics(G))
-    return df, new_metrics
+    print(df, new_metrics, new_metrics_extra_file)
+    return df, new_metrics, new_metrics_extra_file
 
 
 def generate_csv_data_pairs(data_path, input_path, load_compressed_file=load_compressed_file):
@@ -228,31 +357,31 @@ def generate_csv_data_pairs(data_path, input_path, load_compressed_file=load_com
             raise Exception(repr(data_i)+"\nUnexpected error in fetching data" )
 
 
-# import concurrent.futures, threading
-# class DummyExecutor(concurrent.futures.Executor):
-#
-#     def __init__(self,*args, **kwargs):
-#         self._shutdown = False
-#         self._shutdownLock = threading.Lock()
-#
-#     def submit(self, fn, *args, **kwargs):
-#         with self._shutdownLock:
-#             if self._shutdown:
-#                 raise RuntimeError('cannot schedule new futures after shutdown')
-#
-#             f = concurrent.futures.Future()
-#             try:
-#                 result = fn(*args, **kwargs)
-#             except BaseException as e:
-#                 f.set_exception(e)
-#             else:
-#                 f.set_result(result)
-#
-#             return f
-#
-#     def shutdown(self, wait=True):
-#         with self._shutdownLock:
-#             self._shutdown = True
+import concurrent.futures, threading
+class DummyExecutor(concurrent.futures.Executor):
+
+    def __init__(self,*args, **kwargs):
+        self._shutdown = False
+        self._shutdownLock = threading.Lock()
+
+    def submit(self, fn, *args, **kwargs):
+        with self._shutdownLock:
+            if self._shutdown:
+                raise RuntimeError('cannot schedule new futures after shutdown')
+
+            f = concurrent.futures.Future()
+            try:
+                result = fn(*args, **kwargs)
+            except BaseException as e:
+                f.set_exception(e)
+            else:
+                f.set_result(result)
+
+            return f
+
+    def shutdown(self, wait=True):
+        with self._shutdownLock:
+            self._shutdown = True
 def generate_additional_data(data_path, input_path, output_path, newcols, load_compressed_file=load_compressed_file,
                              pool=None):
     datapair_generator = generate_csv_data_pairs(data_path, input_path, load_compressed_file=load_compressed_file)
@@ -266,27 +395,35 @@ def generate_additional_data(data_path, input_path, output_path, newcols, load_c
     from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
     # ThreadPoolExecutor = DummyExecutor
     with (open(output_path, mode="w", newline="") as file,
-          (ProcessPoolExecutor(max_workers=max_workers) if pool is None else contextlib.nullcontext()) as _pool):
+          open(output_path+"_addn", mode="w", newline="") as adden,
+          # (ProcessPoolExecutor(max_workers=max_workers) if pool is None else contextlib.nullcontext()) as _pool):
+          (DummyExecutor(max_workers=max_workers)) as _pool):
         if pool is None:
             pool = _pool
         futures = {pool.submit(process_newdata, newcols, *data): data for data in
                    islice(datapair_generator, max_pending)}
         all_submitted = len(futures) < max_pending
         writer = csv.writer(file)
+        adden_writer = csv.writer(adden)
         i = 0
         while futures:
             for future in concurrent.futures.as_completed(futures):
-                existingvalues, result = future.result()
+                existingvalues, result, addendum = future.result()
                 del futures[future]
                 if result is not None:
                     result.update(existingvalues)
                     sorted_keys = sorted(result.keys())
+                    adden_sorted_keys = sorted(addendum.keys())
                     sorted_values = [result[k] for k in sorted_keys]
+                    adden_sorted_values = [addendum[k] for k in adden_sorted_keys]
                     if write_header:
                         write_header = False
                         writer.writerow(sorted_keys)
+                        adden_writer.writerow(adden_sorted_keys)
                     writer.writerow(sorted_values)
+                    adden_writer.writerow(adden_sorted_values)
                     file.flush()
+                    adden.flush()
                     # logger.info()
                     logger.info(f"wrote result {i} to output csv: {result}")
                     i += 1

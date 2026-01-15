@@ -140,31 +140,34 @@ class SolanaInterface(Interface):
         return read_addrs, write_addrs, None
 
     def get_conflict_graph(self, data: dict) -> Any:
-        reads, txs, writes = self.get_rw_sets(data)
+        reads, txs, writes, programs = self.get_rw_sets(data)
 
         return self._create_conflict_graph_from_readset_writeset(txs, reads, writes)
 
     def get_conflict_graph_rwsets(self, data: dict) -> Any:
-        reads, txs, writes = self.get_rw_sets(data)
+        reads, txs, writes, programs = self.get_rw_sets(data)
 
-        return self._create_conflict_graph_from_readset_writeset(txs, reads, writes), txs, reads, writes
+        return self._create_conflict_graph_from_readset_writeset(txs, reads, writes), txs, reads, writes, programs
 
     def get_rw_sets(self, data):
         block = data[0]
         tx_entries: List[dict] = block.get("transactions", [])
         writes: Dict[str, Set[str]] = {}
         reads: Dict[str, Set[str]] = {}
+        programs: Dict[str, Set[str]] = {}
         txs: List[str] = []
         for tx_entry in tx_entries:
             sigs = tx_entry.get("transaction", {}).get("signatures", [])
             if not sigs:
                 continue
             tx_id = sigs[0]
-            read_addrs, write_addrs,_ = self._parse_tx(tx_entry)
+            read_addrs, write_addrs, program_addrs = self._parse_tx(tx_entry)
 
             if read_addrs:
                 reads[tx_id] = read_addrs
             if write_addrs:
                 writes[tx_id] = write_addrs
+            if program_addrs:
+                programs[tx_id] = program_addrs
             txs.append(tx_id)
-        return reads, txs, writes
+        return reads, txs, writes, programs
