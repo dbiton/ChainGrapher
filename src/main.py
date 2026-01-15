@@ -396,8 +396,8 @@ def generate_additional_data(data_path, input_path, output_path, newcols, load_c
     # ThreadPoolExecutor = DummyExecutor
     with (open(output_path, mode="w", newline="") as file,
           open(output_path+"_addn", mode="w", newline="") as adden,
-          # (ProcessPoolExecutor(max_workers=max_workers) if pool is None else contextlib.nullcontext()) as _pool):
-          (DummyExecutor(max_workers=max_workers)) as _pool):
+          (ProcessPoolExecutor(max_workers=max_workers) if pool is None else contextlib.nullcontext()) as _pool):
+          # (DummyExecutor(max_workers=max_workers)) as _pool):
         if pool is None:
             pool = _pool
         futures = {pool.submit(process_newdata, newcols, *data): data for data in
