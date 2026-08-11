@@ -4,3 +4,7 @@ pandas
 python-dotenv
 httpx
 h5py
+matplotlib==3.9.0
+infixpy
+networkx
+scipy

@@ -1,4 +1,7 @@
+import glob
 import os
+
+import matplotlib.ticker
 from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
@@ -6,15 +9,23 @@ import networkx as nx
 
 from interfaces.interface import Interface
 
-FIGS_DIR = 'figures'
+FIGS_DIR = './data/download/solana/figures'
 
+figlatex=r'''\begin{figure}
+\centerline{\includegraphics[width=\columnwidth]{figures/%s}}
+\caption{%s}
+\label{fig:%s}
+\end{figure}'''
+def maketuple(s:str):
+    s1=s.replace('_','-')
+    return (f"{s}.png", s1,s1)
 def plot_graph(graph):
     plt.figure(figsize=(8, 6))
     pos = nx.kamada_kawai_layout(graph)  # positions for all nodes
     nx.draw(graph, pos, arrows=True)#, with_labels=True)
     plt.show()
 
-def plot_block_size_distribution(df):
+def plot_block_size_distribution(df,print=print):
     bucket_width = 1
     block_sizes = list(df['txs'])
     
@@ -40,8 +51,44 @@ def plot_block_size_distribution(df):
     plt.tight_layout()
     
     # Save the plot
-    plt.savefig(f"figures\\block_size_dist.png")
+    plt.savefig(f"{FIGS_DIR}/block_size_dist.png")
     plt.close()
+    print(figlatex%maketuple("block_size_dist"))
+def plot_density_distribution(df,print=print):
+    bucket_width = 0.001
+    block_sizes = list(df['density'])
+
+    # Determine the range of the data
+    min_val = min(block_sizes)
+    max_val = max(block_sizes)
+
+    # Construct bin edges: start at min_val and go up to max_val in steps of 20
+    # Adding a final 20 to max_val ensures we include the top edge
+    bins = np.arange(min_val, max_val + bucket_width, bucket_width)
+    plt.figure(figsize=(20,4))
+    weights = np.ones(len(block_sizes)) / len(block_sizes)
+
+    # Plot the histogram
+    counts, edges, bars = plt.hist(block_sizes, bins=bins, edgecolor='black')
+
+    plt.bar_label(bars)
+    # Add labels and title for clarity
+    plt.xlabel('Density')
+    plt.ylabel('Frequency')
+    plt.xscale('log', base=10)
+    plt.yscale('log', base=10)
+    ax=plt.gca()
+    ax.xaxis.set_major_formatter(matplotlib.ticker.ScalarFormatter())
+    ax.yaxis.set_major_formatter(matplotlib.ticker.ScalarFormatter())
+    # plt.grid()
+    # plt.legend()
+    # plt.autoscale(enable=True, axis='x', tight=None)
+    plt.tight_layout()
+
+    # Save the plot
+    plt.savefig(f"{FIGS_DIR}/density_dist.png")
+    plt.close()
+    print(figlatex % maketuple("density_dist"))
 
 def plot_smart_contract_percent(_df):
     plt.figure()
@@ -78,7 +125,7 @@ def plot_smart_contract_percent(_df):
     plt.tight_layout()
     
     # Save the plot
-    plt.savefig(f"figures\\value_transfer_txs_ratio.png")
+    plt.savefig(f"{FIGS_DIR}/value_transfer_txs_ratio.png")
     plt.close()
 
 def plot_call_metrics(_df):    
@@ -119,34 +166,52 @@ def plot_call_metrics(_df):
     plt.tight_layout()
     
     # Save the plot
-    plt.savefig(f"figures\\call_metrics.png")
+    plt.savefig(f"{FIGS_DIR}/call_metrics.png")
     plt.close()
 
+def plot_data_dir(csv_dir, chain_interface: Interface):
+    all_files = glob.glob(os.path.join(csv_dir, "*.csv"))
+    plot_data_filelist(all_files, chain_interface)
+
+def plot_data_filelist(all_files, chain_interface: Interface):
+    df = pd.concat(((print(f),pd.read_csv(f))[1] for f in all_files), ignore_index=True)
+    with open(f"{FIGS_DIR}/figs.tex", 'a') as f:
+       plot_data_df(df, chain_interface,print=lambda x:print(x,file=f))
+
 def plot_data(csv_path, chain_interface: Interface):
+    df = pd.read_csv(csv_path)
+    df = df.drop_duplicates(subset='block_number', keep='first')
+    plot_data_
+    df(df, chain_interface)
+def plot_data_df(df, chain_interface: Interface,print=print):
     markers = ["o", "s", "^", "v", "D", "*"]
     
     lines_count = 4
     bins_count = 16
     quant_fill = 0.05
 
-    df = pd.read_csv(csv_path)
-    df = df.drop_duplicates(subset='block_number', keep='first')
 
     additional_figs = chain_interface.get_additional_figures(df)
     for (fig, fig_name) in additional_figs:
         fig.savefig(os.path.join(FIGS_DIR, fig_name))
         plt.close(fig)
     
-    '''if is_callTracer:    
-        df['ratio_txs_value_transfer'] = df['count_txs_value_transfer'] / df['txs']
-        plot_call_metrics(df)
-        plot_smart_contract_percent(df)'''
-    plot_block_size_distribution(df)
+    # '''if is_callTracer:
+    #     df['ratio_txs_value_transfer'] = df['count_txs_value_transfer'] / df['txs']
+    #     plot_call_metrics(df)
+    #     plot_smart_contract_percent(df)'''
+    plot_block_size_distribution(df,print=print)
+    plot_density_distribution(df,print=print)
     df['min_path_chromatic_ratio'] = df['longest_path_length_monte_carlo'] / df['greedy_color']
-    df['max_path_chromatic_ratio'] = df['largest_conn_comp'] / df['clique_number_approx']
-    df['user_tx_ratio'] = df['user_tx_count'] / df['txs']
-    df['system_tx_ratio'] = df['system_tx_count'] / df['txs']
-    df['mean_sui_transfered'] = df['total_sui_transfered'] / df['txs']
+    df['max_path_chromatic_ratio'] = df['largest_conn_comp'] / df['clique_number']
+    df['avg_fee'] = df['sumof_fee'] / df['txs']
+    df['avg_computeUnitsConsumed'] = df['sumof_computeUnitsConsumed'] / df['txs']
+    df['avg_costUnits'] = df['sumof_costUnits'] / df['txs']
+    df['avg_failed'] = df['sumof_failed'] / df['txs']
+
+    # df['user_tx_ratio'] = df['user_tx_count'] / df['txs']
+    # df['system_tx_ratio'] = df['system_tx_count'] / df['txs']
+    # df['mean_sui_transfered'] = df['total_sui_transfered'] / df['txs']
     
     # Ensure the data has X, Y, and other columns
     if "density" not in df.columns or "txs" not in df.columns:
@@ -188,7 +253,7 @@ def plot_data(csv_path, chain_interface: Interface):
             df_group['density_bin'] = pd.cut(density, bins=bins, include_lowest=True)
             
             # Group by the bins and compute mean and SEM
-            grouped = df_group.groupby('density_bin')
+            grouped = df_group.groupby('density_bin', observed=False)
             mean_conflict = grouped["density"].mean()
             mean_prop = grouped[prop].mean()
             
@@ -209,10 +274,11 @@ def plot_data(csv_path, chain_interface: Interface):
         plt.tight_layout()
 
         # Save the plot
-        plt.savefig(f"figures\\{prop}.png")
+        plt.savefig(f"{FIGS_DIR}/{prop}.png")
         plt.close()
+        print(figlatex % maketuple(prop))
 
-    print_overleaf_table(df)
+    # print_overleaf_table(df)
 
 def print_overleaf_table(df):
     print(r"\begin{table}[ht]")

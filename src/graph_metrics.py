@@ -234,22 +234,22 @@ def clique_number_heuristic(G: nx.Graph) -> int:
 
 def get_graph_metrics(graph: nx.Graph) -> Dict[str, float]:
     results = {
-        "clique_number_approx": graph_clique_approx(graph),
-        # "clique_number": graph_clique(graph),                            # O(2^n)
-        #"diameter": graph_diameter(graph),                               # O(n(n + m))
+        # "clique_number_approx": graph_clique_approx(graph),
+        "clique_number": graph_clique(graph),                            # O(2^n)
+        "diameter": graph_diameter(graph),                               # O(n(n + m))
         #"vertex_cover_dummy_approx": get_vertex_cover_dummy_approx(graph),  # O(n^2)
-        #"cluster_coe": graph_cluster_coe(graph),                         # O(n * d^2)
-        #"transitivity": graph_transitivity(graph),                       # O(n * d^2)
-        #"modularity": graph_modularity(graph),                           # O(n log^2 n) to O(n^2)
+        "cluster_coe": graph_cluster_coe(graph),                         # O(n * d^2)
+        "transitivity": graph_transitivity(graph),                       # O(n * d^2)
+        "modularity": graph_modularity(graph),                           # O(n log^2 n) to O(n^2)
         "degeneracy": graph_degeneracy(graph),
         "greedy_color": graph_greedy_coloring(graph),                    # O(n + m) to O(n^2)
         "longest_path_length_monte_carlo": graph_longest_path_length(graph),  # O(k(n + m))
         #"vertex_cover_pop_max_deg_approx": get_vertex_cover_pop_max_deg_approx(graph),  # O(n log n + m)
-        #"assortativity": graph_assortativity(graph),                     # O(n + m)
+        "assortativity": graph_assortativity(graph),                     # O(n + m)
         "largest_conn_comp": graph_largest_connected_component_size(graph),  # O(n + m)
-        #"vertex_cover_nx_approx": get_vertex_cover_nx_approx(graph),     # O(n + m)
-        #"max_degree": graph_max_degree(graph),                           # O(n)
-        #"degree": graph_average_degree(graph),                           # O(n)
+        "vertex_cover_nx_approx": get_vertex_cover_nx_approx(graph),     # O(n + m)
+        "max_degree": graph_max_degree(graph),                           # O(n)
+        "degree": graph_average_degree(graph),                           # O(n)
         "density": graph_density(graph)                                  # O(1)
     }
     return results
