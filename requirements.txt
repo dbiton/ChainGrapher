@@ -1,10 +1,9 @@
-web3
 networkx
 pandas
 python-dotenv
 httpx
 h5py
+h5pickle
 matplotlib==3.9.0
 infixpy
-networkx
 scipy
